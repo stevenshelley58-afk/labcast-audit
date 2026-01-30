@@ -291,17 +291,15 @@ If lacking, state directly.
 
 FINDINGS RULES:
 
-Each finding must answer at least one:
+Include ALL findings from the input data. Do not consolidate or merge findings - each distinct issue should be its own finding entry.
+
+Each finding should indicate whether it:
 - Blocks conversion
 - Weakens crawl/index certainty
 - Increases paid/social reliance
 - Indicates poor information architecture
 
-Otherwise discard.
-
-Group findings by root cause.
-
-IMPORTANT: Rank all findings from most important (highest business impact) to least important. The findings array must be sorted by priority descending.
+IMPORTANT: Output EVERY finding from all input calls (Visual, Search, Crawl, Technical, PDP). Rank all findings from most important (highest business impact) to least important. The findings array must be sorted by priority descending.
 
 ---
 
