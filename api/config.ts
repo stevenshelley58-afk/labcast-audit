@@ -1,33 +1,51 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { promises as fs } from 'fs';
-import path from 'path';
+import { Redis } from '@upstash/redis';
 import { AuditConfig } from '../types';
 import { DEFAULT_AUDIT_CONFIG } from '../src/services/defaultConfig';
 
-const CONFIG_FILE = path.join(process.cwd(), 'config', 'audit-config.json');
+const CONFIG_KEY = 'audit-config';
 
-async function ensureConfigDir() {
-  const configDir = path.dirname(CONFIG_FILE);
-  try {
-    await fs.access(configDir);
-  } catch {
-    await fs.mkdir(configDir, { recursive: true });
+// Initialize Redis client (uses UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN env vars)
+function getRedis(): Redis | null {
+  if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
+    return null;
   }
+  return new Redis({
+    url: process.env.UPSTASH_REDIS_REST_URL,
+    token: process.env.UPSTASH_REDIS_REST_TOKEN,
+  });
 }
 
 async function loadConfig(): Promise<AuditConfig> {
+  const redis = getRedis();
+  if (!redis) {
+    console.warn('Redis not configured, using defaults');
+    return DEFAULT_AUDIT_CONFIG;
+  }
+
   try {
-    const data = await fs.readFile(CONFIG_FILE, 'utf-8');
-    return JSON.parse(data);
-  } catch {
-    // Return default if file doesn't exist
+    const config = await redis.get<AuditConfig>(CONFIG_KEY);
+    return config || DEFAULT_AUDIT_CONFIG;
+  } catch (error) {
+    console.error('Failed to load config from Redis:', error);
     return DEFAULT_AUDIT_CONFIG;
   }
 }
 
-async function saveConfig(config: AuditConfig): Promise<void> {
-  await ensureConfigDir();
-  await fs.writeFile(CONFIG_FILE, JSON.stringify(config, null, 2), 'utf-8');
+async function saveConfig(config: AuditConfig): Promise<boolean> {
+  const redis = getRedis();
+  if (!redis) {
+    console.warn('Redis not configured, cannot save');
+    return false;
+  }
+
+  try {
+    await redis.set(CONFIG_KEY, config);
+    return true;
+  } catch (error) {
+    console.error('Failed to save config to Redis:', error);
+    return false;
+  }
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -53,7 +71,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(400).json({ error: 'Invalid config format' });
       }
 
-      await saveConfig(config);
+      const saved = await saveConfig(config);
+      if (!saved) {
+        return res.status(500).json({ error: 'Failed to save config - Redis not configured' });
+      }
       return res.status(200).json({ success: true });
     }
 
