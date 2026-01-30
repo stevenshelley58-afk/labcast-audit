@@ -7,12 +7,18 @@ export interface ModelPricing {
 }
 
 export const AVAILABLE_MODELS = [
+  // Gemini models
   'gemini-2.0-flash',
   'gemini-2.0-flash-exp',
   'gemini-2.0-pro-exp-02-05',
   'gemini-1.5-pro',
   'gemini-1.5-flash',
   'gemini-3-pro-preview',
+  // OpenAI models
+  'gpt-4o',
+  'gpt-4o-mini',
+  'gpt-4-turbo',
+  'gpt-3.5-turbo',
 ];
 
 export const MODEL_PRICING: Record<string, ModelPricing> = {
@@ -44,6 +50,23 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
   'gemini-3-pro-preview': {
     inputPer1k: 0.00025,
     outputPer1k: 0.001,
+  },
+  // OpenAI pricing (per 1K tokens)
+  'gpt-4o': {
+    inputPer1k: 0.0025,
+    outputPer1k: 0.01,
+  },
+  'gpt-4o-mini': {
+    inputPer1k: 0.00015,
+    outputPer1k: 0.0006,
+  },
+  'gpt-4-turbo': {
+    inputPer1k: 0.01,
+    outputPer1k: 0.03,
+  },
+  'gpt-3.5-turbo': {
+    inputPer1k: 0.0005,
+    outputPer1k: 0.0015,
   },
 };
 

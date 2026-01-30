@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AuditTrace, AuditConfig, AuditStepConfig } from '../types';
 import { X, Copy, Clock, Database, Image as ImageIcon, Terminal, Cpu, Settings, Save, DollarSign } from 'lucide-react';
-import { calculateStepCost, formatCost } from '../src/lib/pricing';
+import { calculateStepCost, formatCost, AVAILABLE_MODELS } from '../src/lib/pricing';
 
 interface AuditMetadata {
   totalCost: number;
@@ -15,9 +15,10 @@ interface DebugOverlayProps {
   onConfigChange: (newConfig: AuditConfig) => void;
   onClose: () => void;
   metadata?: AuditMetadata | null;
+  isSaving?: boolean;
 }
 
-export const DebugOverlay: React.FC<DebugOverlayProps> = ({ traces: propTraces, config, onConfigChange, onClose, metadata }) => {
+export const DebugOverlay: React.FC<DebugOverlayProps> = ({ traces: propTraces, config, onConfigChange, onClose, metadata, isSaving }) => {
   const allTraces = propTraces || [];
   
   // Default to showing the last trace or the first config step if no traces exist
@@ -267,23 +268,34 @@ export const DebugOverlay: React.FC<DebugOverlayProps> = ({ traces: propTraces, 
                             <h2 className="text-xl font-bold text-white">{editConfig.title} Configuration</h2>
                             <p className="text-xs text-gray-500 mt-1">Changes will be applied to the next audit run.</p>
                         </div>
-                        <button 
+                        <button
                             onClick={handleSaveConfig}
-                            className="bg-green-600 hover:bg-green-500 text-black px-4 py-2 rounded font-bold flex items-center gap-2 transition-colors"
+                            disabled={isSaving}
+                            className={`${isSaving ? 'bg-green-800 cursor-wait' : 'bg-green-600 hover:bg-green-500'} text-black px-4 py-2 rounded font-bold flex items-center gap-2 transition-colors`}
                         >
-                            <Save size={16} /> Save Changes
+                            <Save size={16} /> {isSaving ? 'Saving...' : 'Save Changes'}
                         </button>
                     </div>
 
                     <div className="grid grid-cols-1 gap-6">
                         <div>
                             <label className="block text-xs font-bold text-green-600 uppercase mb-2">Model ID</label>
-                            <input 
-                                type="text" 
+                            <select
                                 value={editConfig.model}
                                 onChange={(e) => setEditConfig({...editConfig, model: e.target.value})}
                                 className="w-full bg-gray-900 border border-gray-800 rounded p-3 text-white focus:border-green-500 focus:outline-none transition-colors"
-                            />
+                            >
+                                <optgroup label="Gemini">
+                                    {AVAILABLE_MODELS.filter(m => m.startsWith('gemini')).map((modelId) => (
+                                        <option key={modelId} value={modelId}>{modelId}</option>
+                                    ))}
+                                </optgroup>
+                                <optgroup label="OpenAI">
+                                    {AVAILABLE_MODELS.filter(m => m.startsWith('gpt')).map((modelId) => (
+                                        <option key={modelId} value={modelId}>{modelId}</option>
+                                    ))}
+                                </optgroup>
+                            </select>
                         </div>
 
                          <div>

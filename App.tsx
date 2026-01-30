@@ -55,7 +55,7 @@ function Footer({ onDebugClick }: FooterProps) {
 
 export default function App() {
   const audit = useAuditExecution();
-  const { config, setConfig } = useAuditConfig();
+  const { config, setConfig, isSaving } = useAuditConfig();
   const debug = useDebugMode();
 
   const handleSubmit = (url: string, pdpUrl?: string) => {
@@ -73,6 +73,7 @@ export default function App() {
           onConfigChange={setConfig}
           onClose={debug.hide}
           metadata={audit.metadata}
+          isSaving={isSaving}
         />
       )}
 
