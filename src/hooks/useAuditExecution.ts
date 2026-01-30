@@ -42,6 +42,34 @@ export function useAuditExecution() {
 
     addLog('Initializing Audit Protocol...', 200);
 
+    const funnyMessages = [
+      'Pretending to understand your website...',
+      'Consulting my neural networks (they said "lol idk")...',
+      'Running algorithms I definitely wrote myself...',
+      'Checking if the code works... fingers crossed...',
+      'Asking ChatGPT for help (just kidding... maybe)...',
+      'Converting coffee to code analysis...',
+      'Hoping the server doesn\'t crash this time...',
+      'Making educated guesses look professional...',
+      'Googling "how to audit websites" real quick...',
+      'Applying machine learning (I think?)...',
+      'Staring at pixels really intensely...',
+      'Calculating... something... probably...',
+      'Using AI responsibly (mostly)...',
+      'Trying not to hallucinate findings...',
+      'Cross-referencing with my imaginary database...',
+      'Spinning up the hamster wheels...',
+      'Pretending I know what SEO means...',
+      'Analyzing code like I understand it...',
+      'Running diagnostics (making it up as I go)...',
+      'Deploying neural confidence intervals...',
+      'Simulating competence successfully...',
+      'Generating insights (or random thoughts)...',
+      'Validating data (or just vibing)...',
+      'Processing... please don\'t look at my source code...',
+      'Almost done! (I have no idea how long this takes)...',
+    ];
+
     try {
       await new Promise(r => setTimeout(r, 600));
       addLog(`Target Acquired: ${targetUrl}`, 200);
@@ -51,20 +79,36 @@ export function useAuditExecution() {
 
       setStatus(AuditStatus.ANALYZING);
 
-      const result = await runAudit(targetUrl, pdpUrl, config, (msg) => {
-        addLog(msg, 200);
-      });
+      // Start streaming funny messages
+      let messageIndex = 0;
+      const messageInterval = setInterval(() => {
+        if (messageIndex < funnyMessages.length) {
+          addLog(funnyMessages[messageIndex], 200);
+          messageIndex++;
+        }
+      }, 800);
 
-      if (result.report.overallScore === 0) {
-        addLog('AUDIT FAILED: Target unreachable or blocked.', 404);
-        setStatus(AuditStatus.ERROR);
-        setError(new AuditError('FETCH_FAILED', 'Target unreachable or blocked'));
-      } else {
-        addLog('Audit Complete. Report Generated.', 200);
-        setReport(result.report);
-        setTraces(result.traces);
-        setMetadata(result.metadata);
-        setStatus(AuditStatus.COMPLETE);
+      try {
+        const result = await runAudit(targetUrl, pdpUrl, config, (msg) => {
+          addLog(msg, 200);
+        });
+
+        clearInterval(messageInterval);
+
+        if (result.report.overallScore === 0) {
+          addLog('AUDIT FAILED: Target unreachable or blocked.', 404);
+          setStatus(AuditStatus.ERROR);
+          setError(new AuditError('FETCH_FAILED', 'Target unreachable or blocked'));
+        } else {
+          addLog('Audit Complete. Report Generated.', 200);
+          setReport(result.report);
+          setTraces(result.traces);
+          setMetadata(result.metadata);
+          setStatus(AuditStatus.COMPLETE);
+        }
+      } catch (err) {
+        clearInterval(messageInterval);
+        throw err;
       }
     } catch (err) {
       console.error(err);

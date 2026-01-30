@@ -19,12 +19,12 @@ export function LoadingView({ status, url, logs }: LoadingViewProps) {
           <Loader2 className="animate-spin w-8 h-8 text-black" />
         </div>
         <h3 className="text-3xl font-semibold text-black tracking-tight">
-          {isCrawling ? 'Capturing Site Visuals...' : 'Synthesizing Intelligence'}
+          {isCrawling ? 'Capturing Site Visuals...' : 'Doing very technical coding stuff'}
         </h3>
         <p className="text-gray-500 max-w-lg mx-auto">
           {isCrawling
             ? `Taking high-res snapshot of ${url}`
-            : 'Applying 5-step agentic audit framework (Visual, Search, Technical).'}
+            : 'Applying 5-step agentic audit framework (Visual, Search, Technical). I really hope my code does not crash again.'}
         </p>
       </div>
 
