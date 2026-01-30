@@ -10,7 +10,12 @@
       "Bash(npm run build:*)",
       "Bash(npm run dev:*)",
       "Bash(git init:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nProduction readiness refactor\n\n- Add Vercel serverless API functions \\(api/audit.ts, api/screenshot.ts\\)\n- Move Gemini API calls server-side for security\n- Add Tailwind CSS v4 build integration\n- Refactor App.tsx into hooks and view components\n- Add password-protected debug mode\n- Implement real cost tracking with Gemini pricing\n- Add structured error handling with AuditError class\n- Create lib utilities \\(errors, constants, pricing\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(gh repo create:*)",
+      "Bash(vercel:*)",
+      "Bash(git commit:*)",
+      "Bash(git push)"
     ]
   }
 }

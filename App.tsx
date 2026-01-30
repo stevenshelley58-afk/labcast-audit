@@ -13,7 +13,7 @@ function Header() {
   return (
     <header className="flex items-center justify-between py-8">
       <div className="flex items-center gap-2 group cursor-pointer" onClick={() => window.location.reload()}>
-        <h1 className="text-xl font-bold tracking-tighter text-black">Auditor</h1>
+        <h1 className="text-xl font-bold tracking-tighter text-black">Audit</h1>
       </div>
       <nav className="hidden md:flex gap-8 text-sm font-medium text-gray-500">
         <a href="#" className="hover:text-black transition-colors">Products</a>
@@ -42,7 +42,7 @@ function Footer({ onDebugClick }: FooterProps) {
           className="text-xs text-gray-400 cursor-pointer select-none hover:text-gray-600 transition-colors"
           onClick={onDebugClick}
         >
-          © 2024 Website Auditor.
+          © 2025 All rights reserved.
         </p>
         <div className="flex gap-6 mt-4 md:mt-0">
           <a href="#" className="text-xs text-gray-400 hover:text-black">Privacy</a>
