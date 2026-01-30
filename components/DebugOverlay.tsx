@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { AuditTrace, AuditConfig, AuditStepConfig } from '../types';
-import { X, Copy, Clock, Database, Image as ImageIcon, Terminal, Cpu, Settings, Save, DollarSign } from 'lucide-react';
+import { X, Copy, Clock, Database, Image as ImageIcon, Terminal, Cpu, Settings, Save, DollarSign, Zap, ToggleLeft, ToggleRight, Activity, FileText } from 'lucide-react';
 import { calculateStepCost, formatCost, AVAILABLE_MODELS } from '../src/lib/pricing';
+import type { HybridAuditReport, HybridAuditEvent } from '../src/hooks/useHybridAudit';
 
 interface AuditMetadata {
   totalCost: number;
   totalDurationMs: number;
   screenshotCaptured: boolean;
+  pdpAnalyzed?: boolean;
 }
 
 interface DebugOverlayProps {
@@ -16,14 +18,30 @@ interface DebugOverlayProps {
   onClose: () => void;
   metadata?: AuditMetadata | null;
   isSaving?: boolean;
+  // Hybrid mode props
+  hybridMode?: boolean;
+  hybridReport?: HybridAuditReport | null;
+  hybridEvents?: HybridAuditEvent[];
+  onToggleHybrid?: () => void;
 }
 
-export const DebugOverlay: React.FC<DebugOverlayProps> = ({ traces: propTraces, config, onConfigChange, onClose, metadata, isSaving }) => {
+export const DebugOverlay: React.FC<DebugOverlayProps> = ({
+  traces: propTraces,
+  config,
+  onConfigChange,
+  onClose,
+  metadata,
+  isSaving,
+  hybridMode = false,
+  hybridReport,
+  hybridEvents = [],
+  onToggleHybrid,
+}) => {
   const allTraces = propTraces || [];
-  
+
   // Default to showing the last trace or the first config step if no traces exist
   const [selectedTraceId, setSelectedTraceId] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'overview' | 'prompt' | 'image' | 'response' | 'settings'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'prompt' | 'image' | 'response' | 'settings' | 'hybrid'>('overview');
   
   // Local state for editing to avoid constant re-renders/writes to parent state during typing
   const [editConfig, setEditConfig] = useState<AuditStepConfig | null>(null);
@@ -93,11 +111,24 @@ export const DebugOverlay: React.FC<DebugOverlayProps> = ({ traces: propTraces, 
       <div className="flex items-center justify-between px-6 py-4 border-b border-green-900 bg-black">
         <div className="flex items-center gap-3">
             <Terminal size={20} />
-            <h2 className="text-lg font-bold tracking-widest uppercase">Shadow Trace // {displayTrace.stepName}</h2>
+            <h2 className="text-lg font-bold tracking-widest uppercase">Shadow Trace // {hybridMode ? 'Hybrid Mode' : displayTrace.stepName}</h2>
         </div>
-        <button onClick={onClose} className="hover:text-white transition-colors">
-            <X size={24} />
-        </button>
+        <div className="flex items-center gap-4">
+            {onToggleHybrid && (
+              <button
+                onClick={onToggleHybrid}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded text-xs font-bold transition-colors ${
+                  hybridMode ? 'bg-green-600 text-black' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                }`}
+              >
+                {hybridMode ? <ToggleRight size={16} /> : <ToggleLeft size={16} />}
+                {hybridMode ? 'Hybrid ON' : 'Hybrid OFF'}
+              </button>
+            )}
+            <button onClick={onClose} className="hover:text-white transition-colors">
+                <X size={24} />
+            </button>
+        </div>
       </div>
 
       <div className="flex flex-1 overflow-hidden">
@@ -161,7 +192,16 @@ export const DebugOverlay: React.FC<DebugOverlayProps> = ({ traces: propTraces, 
             </button>
 
             <div className="mt-auto border-t border-green-900/30">
-                 <button 
+                 {hybridMode && (
+                   <button
+                      onClick={() => setActiveTab('hybrid')}
+                      className={`w-full px-6 py-4 text-left hover:bg-green-900/20 transition-colors flex items-center gap-3 ${activeTab === 'hybrid' ? 'bg-green-900/50 text-white' : 'text-green-400'}`}
+                  >
+                      <Zap size={16} />
+                      Hybrid Data
+                  </button>
+                 )}
+                 <button
                     onClick={() => setActiveTab('settings')}
                     className={`w-full px-6 py-4 text-left hover:bg-green-900/20 transition-colors flex items-center gap-3 ${activeTab === 'settings' ? 'bg-green-900/50 text-white' : 'text-green-400'}`}
                 >
@@ -312,13 +352,180 @@ export const DebugOverlay: React.FC<DebugOverlayProps> = ({ traces: propTraces, 
                                 <label className="block text-xs font-bold text-green-600 uppercase">Prompt Template</label>
                                 <span className="text-[10px] text-gray-500">Supports &#123;&#123;variable&#125;&#125; interpolation</span>
                             </div>
-                            <textarea 
+                            <textarea
                                 value={editConfig.promptTemplate}
                                 onChange={(e) => setEditConfig({...editConfig, promptTemplate: e.target.value})}
                                 className="w-full bg-gray-900 border border-gray-800 rounded p-3 text-white focus:border-green-500 focus:outline-none transition-colors flex-1 min-h-[300px] font-mono text-sm custom-scrollbar"
                             />
                         </div>
                     </div>
+                </div>
+            )}
+
+            {activeTab === 'hybrid' && hybridMode && (
+                <div className="space-y-6 max-w-6xl h-full overflow-auto">
+                    {/* Hybrid Mode Header */}
+                    <div className="flex items-center justify-between pb-4 border-b border-green-900/30">
+                        <div>
+                            <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                                <Zap size={20} className="text-green-400" />
+                                Hybrid Audit Data
+                            </h2>
+                            <p className="text-xs text-gray-500 mt-1">4-layer audit pipeline with multi-provider support</p>
+                        </div>
+                    </div>
+
+                    {/* Scores Grid */}
+                    {hybridReport && (
+                        <div className="grid grid-cols-4 gap-4">
+                            <div className="p-4 border border-green-800 rounded bg-green-900/10">
+                                <div className="text-xs text-green-400 uppercase tracking-widest mb-1">Overall</div>
+                                <div className="text-3xl font-bold text-white">{hybridReport.scores.overall}</div>
+                            </div>
+                            <div className="p-4 border border-green-800 rounded bg-green-900/10">
+                                <div className="text-xs text-green-400 uppercase tracking-widest mb-1">Technical</div>
+                                <div className="text-2xl font-bold text-white">{hybridReport.scores.technical}</div>
+                            </div>
+                            <div className="p-4 border border-green-800 rounded bg-green-900/10">
+                                <div className="text-xs text-green-400 uppercase tracking-widest mb-1">On-Page</div>
+                                <div className="text-2xl font-bold text-white">{hybridReport.scores.onPage}</div>
+                            </div>
+                            <div className="p-4 border border-green-800 rounded bg-green-900/10">
+                                <div className="text-xs text-green-400 uppercase tracking-widest mb-1">Performance</div>
+                                <div className="text-2xl font-bold text-white">{hybridReport.scores.performance}</div>
+                            </div>
+                            <div className="p-4 border border-green-800 rounded bg-green-900/10">
+                                <div className="text-xs text-green-400 uppercase tracking-widest mb-1">Content</div>
+                                <div className="text-2xl font-bold text-white">{hybridReport.scores.content}</div>
+                            </div>
+                            <div className="p-4 border border-green-800 rounded bg-green-900/10">
+                                <div className="text-xs text-green-400 uppercase tracking-widest mb-1">Security</div>
+                                <div className="text-2xl font-bold text-white">{hybridReport.scores.security}</div>
+                            </div>
+                            <div className="p-4 border border-green-800 rounded bg-green-900/10">
+                                <div className="text-xs text-green-400 uppercase tracking-widest mb-1">Visual</div>
+                                <div className="text-2xl font-bold text-white">{hybridReport.scores.visual}</div>
+                            </div>
+                            <div className="p-4 border border-green-800 rounded bg-green-900/10">
+                                <div className="text-xs text-green-400 uppercase tracking-widest mb-1 flex items-center gap-1">
+                                    <DollarSign size={12} /> Cost
+                                </div>
+                                <div className="text-2xl font-bold text-white">{formatCost(hybridReport.metadata.totalCost)}</div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Metadata */}
+                    {hybridReport && (
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="p-4 border border-green-800 rounded bg-green-900/10">
+                                <div className="text-xs text-green-400 uppercase tracking-widest mb-2">Layer Timings</div>
+                                <div className="grid grid-cols-4 gap-2 text-xs">
+                                    <div className="text-gray-400">L1: <span className="text-white">{hybridReport.metadata.layerTimings.layer1}ms</span></div>
+                                    <div className="text-gray-400">L2: <span className="text-white">{hybridReport.metadata.layerTimings.layer2}ms</span></div>
+                                    <div className="text-gray-400">L3: <span className="text-white">{hybridReport.metadata.layerTimings.layer3}ms</span></div>
+                                    <div className="text-gray-400">L4: <span className="text-white">{hybridReport.metadata.layerTimings.layer4}ms</span></div>
+                                </div>
+                            </div>
+                            <div className="p-4 border border-green-800 rounded bg-green-900/10">
+                                <div className="text-xs text-green-400 uppercase tracking-widest mb-2">Providers & Audits</div>
+                                <div className="text-xs text-gray-400">
+                                    Providers: <span className="text-white">{hybridReport.metadata.providersUsed.join(', ')}</span>
+                                </div>
+                                <div className="text-xs text-gray-400 mt-1">
+                                    Completed: <span className="text-white">{hybridReport.metadata.completedAudits.length} audits</span>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Executive Summary */}
+                    {hybridReport && (
+                        <div className="p-4 border border-green-800 rounded bg-green-900/10">
+                            <div className="text-xs text-green-400 uppercase tracking-widest mb-2">Executive Summary</div>
+                            <p className="text-sm text-gray-300">{hybridReport.summary}</p>
+                        </div>
+                    )}
+
+                    {/* Findings */}
+                    {hybridReport && hybridReport.findings.length > 0 && (
+                        <div>
+                            <div className="text-xs text-green-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                <FileText size={14} />
+                                Findings ({hybridReport.findings.length})
+                            </div>
+                            <div className="space-y-2 max-h-[400px] overflow-auto">
+                                {hybridReport.findings.map((f, i) => (
+                                    <div key={f.id} className="p-3 border border-gray-800 rounded bg-gray-900/50">
+                                        <div className="flex items-start justify-between gap-2">
+                                            <div className="flex-1">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${
+                                                        f.priority === 'critical' ? 'bg-red-900 text-red-300' :
+                                                        f.priority === 'high' ? 'bg-orange-900 text-orange-300' :
+                                                        f.priority === 'medium' ? 'bg-yellow-900 text-yellow-300' :
+                                                        'bg-gray-700 text-gray-300'
+                                                    }`}>
+                                                        {f.priority.toUpperCase()}
+                                                    </span>
+                                                    <span className="text-[10px] text-gray-500">{f.category}</span>
+                                                    <span className="text-[10px] text-gray-600">via {f.source}</span>
+                                                </div>
+                                                <div className="text-sm text-white font-medium">{f.finding}</div>
+                                                <div className="text-xs text-gray-500 mt-1">Evidence: {f.evidence.substring(0, 100)}...</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Events Log */}
+                    {hybridEvents.length > 0 && (
+                        <div>
+                            <div className="text-xs text-green-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                <Activity size={14} />
+                                Event Log ({hybridEvents.length})
+                            </div>
+                            <div className="space-y-1 max-h-[300px] overflow-auto bg-gray-900 p-3 rounded border border-gray-800">
+                                {hybridEvents.map((e, i) => (
+                                    <div key={i} className="text-xs font-mono">
+                                        <span className="text-gray-600">{new Date(e.timestamp).toLocaleTimeString()}</span>
+                                        <span className={`ml-2 ${
+                                            e.type.includes('complete') ? 'text-green-400' :
+                                            e.type.includes('error') || e.type.includes('failed') ? 'text-red-400' :
+                                            e.type.includes('start') ? 'text-blue-400' :
+                                            'text-gray-400'
+                                        }`}>
+                                            [{e.type}]
+                                        </span>
+                                        <span className="text-gray-300 ml-2">{e.message || e.audit || ''}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Explicit Gaps */}
+                    {hybridReport && hybridReport.explicitGaps.length > 0 && (
+                        <div className="p-4 border border-yellow-800 rounded bg-yellow-900/10">
+                            <div className="text-xs text-yellow-400 uppercase tracking-widest mb-2">Data Gaps</div>
+                            <ul className="text-xs text-yellow-300 space-y-1">
+                                {hybridReport.explicitGaps.map((gap, i) => (
+                                    <li key={i}>• {gap}</li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+
+                    {!hybridReport && (
+                        <div className="text-center text-gray-500 py-12">
+                            <Zap size={48} className="mx-auto mb-4 opacity-30" />
+                            <p>No hybrid audit data available.</p>
+                            <p className="text-xs mt-2">Run an audit to see results here.</p>
+                        </div>
+                    )}
                 </div>
             )}
         </div>
