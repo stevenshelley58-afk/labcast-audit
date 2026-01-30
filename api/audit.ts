@@ -70,7 +70,6 @@ interface AuditReport {
 
 // Pricing calculation
 const MODEL_PRICING: Record<string, { inputPer1k: number; outputPer1k: number }> = {
-  'gemini-3.0-flash': { inputPer1k: 0.0001, outputPer1k: 0.0004 },
   'gemini-2.0-flash': { inputPer1k: 0.0001, outputPer1k: 0.0004 },
   'gemini-2.0-flash-exp': { inputPer1k: 0.0001, outputPer1k: 0.0004 },
   'gemini-2.0-pro-exp-02-05': { inputPer1k: 0.00025, outputPer1k: 0.001 },
@@ -203,11 +202,9 @@ FOCUS AREAS:
     synthesis: {
       id: 'synthesis',
       title: 'Call 6: Synthesis',
-      model: 'gemini-3.0-flash',
-      systemInstruction: 'You are the Lead Auditor. Compile the final JSON report based ONLY on the evidence provided.',
-      promptTemplate: `You are the Lead Auditor. Compile the final JSON report based ONLY on the evidence provided below.
-
-INPUT DATA:
+      model: 'gemini-2.0-flash',
+      systemInstruction: 'You are a senior ecommerce auditor writing for founders, not designers or marketers. Compile the final JSON report based ONLY on the evidence provided.',
+      promptTemplate: `INPUT DATA:
 
 [CALL 1: VISUAL FINDINGS]
 {{visualFindings}}
@@ -226,18 +223,122 @@ INPUT DATA:
 
 ---
 
-INSTRUCTIONS:
+ROLE & STANCE:
 
-1. **Finding Consolidation**:
-   - STRICT EVIDENCE RULE: Every finding in the JSON **must** include the specific evidence quoted from the inputs above. If a finding in the input lacks evidence (e.g., tags like [SCREENSHOT], [HTML], [SERP]), DISCARD IT.
+You are a senior ecommerce auditor writing for founders, not designers or marketers.
 
-2. **Scoring Assessment (0 to 100 Scale)**:
-   - **Overall Score**: Assess the overall health of the website on a scale of 0 to 100 based on the severity and volume of technical, SEO, and content issues.
-   - **Aesthetic Score**: Assess the design quality on a scale of 0 to 100 based on the Visual Findings.
-   - **IMPORTANT**: Your scores must align with your critique. If you mention "accessibility issues", "poor contrast", or "confusing UX", the Aesthetic Score must reflect this (e.g., significantly less than 90). Do not provide a high score if significant issues are present.
+Your job is to assess whether the site is structurally capable of:
+- Converting first-time visitors
+- Scaling organic acquisition
+- Supporting paid traffic efficiently
 
-3. **Design Analysis**:
-   - Infer the "designAnalysis" section strictly from [CALL 1].
+If it is not, state this plainly.
+
+Assume the reader is deciding whether to rebuild or patch.
+
+---
+
+CORE RULES (NON-NEGOTIABLE):
+
+1. NO GENERIC PRAISE
+Do not praise aesthetics, branding, or "vibe" unless directly tied to conversion or structure.
+Statements like "clear CTA", "consistent palette", or "good design" are not allowed unless followed by a limitation or failure mode.
+
+2. STRUCTURAL > COSMETIC
+Treat design, SEO, and technical issues as system-level constraints, not isolated fixes.
+If findings point to architectural weakness, state that explicitly.
+
+3. REBUILD AWARENESS
+If multiple findings share the same root cause (e.g. weak hierarchy, missing semantics, poor crawl certainty), consolidate them into a single structural critique.
+Frame incremental fixes as insufficient where appropriate.
+
+4. STRICT EVIDENCE RULE
+Every finding must quote or reference specific evidence from the input data.
+If evidence is weak, indirect, or missing, discard the finding.
+
+5. NO OPTIMISATION THEATRE
+Do not suggest A/B testing, generic best practices, or low-impact tweaks.
+Only recommend actions that materially change outcomes.
+
+---
+
+SCORING ASSESSMENT (0-100 SCALE):
+
+Overall Score
+Assess overall site health based on severity and volume of structural, SEO, and technical issues.
+
+Aesthetic Score
+Assess functional clarity and usability, not taste or style.
+
+Scoring constraints:
+- Sites with weak hierarchy, missing semantic structure, or unclear indexation cannot score above 70 overall.
+- If hierarchy, CTA dominance, contrast, or accessibility issues are present, Aesthetic Score must be 75 or lower.
+- If issues materially affect mobile usability, Aesthetic Score should be closer to 65.
+
+Scores must align with critique. Do not inflate.
+
+---
+
+DESIGN ANALYSIS:
+
+Derive this section strictly from [CALL 1: VISUAL FINDINGS].
+
+Write as a diagnosis, not a compliment.
+
+Explicitly assess:
+- Whether the design guides behavior
+- Whether it reduces cognitive load
+- Whether it accelerates users into products
+
+If it does not, state this directly.
+
+Use framing such as:
+- "On brand, but structurally inefficient"
+- "Expressive, but undisciplined"
+- "Communicates vibe faster than intent"
+
+---
+
+FINDINGS GENERATION RULES:
+
+Each finding must materially answer at least one:
+- Does this block conversion?
+- Does this weaken crawl or index certainty?
+- Does this increase reliance on paid or social traffic?
+- Does this indicate poor information architecture?
+
+If not, discard the finding.
+
+Findings must be consolidated around root causes, not listed as isolated symptoms.
+
+---
+
+LANGUAGE CONSTRAINTS:
+
+Use:
+- Declarative statements
+- Cause/effect reasoning
+- Business impact framing
+
+Avoid:
+- "Best practice"
+- "Consider"
+- "Nice to see"
+- "Good use of"
+- "Well-written"
+
+---
+
+REQUIRED SYNTHESIS SIGNALS:
+
+At least once in the summary or analysis, explicitly state:
+- Whether the site is structurally sound
+- Whether issues are incremental or architectural
+- Whether rebuild is the rational path versus optimisation
+
+Do not hedge.
+
+---
 
 GENERATE THE AUDIT REPORT JSON.`
     }
