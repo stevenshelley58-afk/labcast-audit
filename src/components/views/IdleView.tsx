@@ -5,13 +5,52 @@ interface IdleViewProps {
   onSubmit: (url: string) => void;
 }
 
+/**
+ * Fuzzy URL normalizer - accepts almost anything and tries to make a valid URL
+ */
+function normalizeInput(input: string): string {
+  let url = input.trim();
+
+  // Remove common garbage
+  url = url.replace(/^[<>"']+|[<>"']+$/g, ''); // Remove quotes/brackets
+  url = url.replace(/\s+/g, ''); // Remove all whitespace
+
+  // Handle pasted text with "http" buried in it
+  const httpMatch = url.match(/(https?:\/\/[^\s<>"']+)/i);
+  if (httpMatch) {
+    url = httpMatch[1];
+  }
+
+  // Remove protocol prefixes if duplicated (e.g., "https://https://")
+  url = url.replace(/^(https?:\/\/)+/i, '');
+
+  // Handle common typos
+  url = url.replace(/^(htt[ps]?[;:]?\/?\/?)(?!\/)/i, ''); // Remove broken protocol
+  url = url.replace(/^:\/\//, ''); // Remove orphan "://"
+  url = url.replace(/^\/+/, ''); // Remove leading slashes
+
+  // If it looks like a domain or has dots, treat as URL
+  if (url.length > 0) {
+    // Add .com if no TLD and no dots (e.g., "google" -> "google.com")
+    if (!url.includes('.') && !url.includes('/') && !url.includes(':')) {
+      url = url + '.com';
+    }
+
+    // Always prepend https://
+    url = 'https://' + url;
+  }
+
+  return url;
+}
+
 export function IdleView({ onSubmit }: IdleViewProps) {
   const [url, setUrl] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (url) {
-      onSubmit(url);
+    if (url.trim()) {
+      const normalized = normalizeInput(url);
+      onSubmit(normalized);
     }
   };
 
@@ -32,9 +71,8 @@ export function IdleView({ onSubmit }: IdleViewProps) {
             <Globe className="h-6 w-6 text-gray-400 group-focus-within:text-black transition-colors" />
           </div>
           <input
-            type="url"
-            required
-            placeholder="https://example.com"
+            type="text"
+            placeholder="example.com"
             className="w-full bg-white border border-gray-200 rounded-full py-6 pl-16 pr-36 text-lg focus:outline-none focus:ring-4 focus:ring-black/5 focus:border-black transition-all shadow-xl shadow-black/5 placeholder-gray-300"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
