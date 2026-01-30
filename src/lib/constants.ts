@@ -1,6 +1,6 @@
 export const MODELS = {
-  DEFAULT: 'gemini-2.0-flash',
-  VISION: 'gemini-2.0-flash',
+  DEFAULT: 'gemini-3.0-flash',
+  VISION: 'gemini-3.0-flash',
   PRO: 'gemini-2.0-pro-exp-02-05',
 } as const;
 

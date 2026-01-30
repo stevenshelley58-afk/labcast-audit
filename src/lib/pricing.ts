@@ -7,6 +7,11 @@ export interface ModelPricing {
 }
 
 export const MODEL_PRICING: Record<string, ModelPricing> = {
+  // Gemini 3.0 Flash
+  'gemini-3.0-flash': {
+    inputPer1k: 0.0001,
+    outputPer1k: 0.0004,
+  },
   // Gemini 2.0 Flash
   'gemini-2.0-flash': {
     inputPer1k: 0.0001,

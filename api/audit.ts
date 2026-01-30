@@ -70,6 +70,7 @@ interface AuditReport {
 
 // Pricing calculation
 const MODEL_PRICING: Record<string, { inputPer1k: number; outputPer1k: number }> = {
+  'gemini-3.0-flash': { inputPer1k: 0.0001, outputPer1k: 0.0004 },
   'gemini-2.0-flash': { inputPer1k: 0.0001, outputPer1k: 0.0004 },
   'gemini-2.0-flash-exp': { inputPer1k: 0.0001, outputPer1k: 0.0004 },
   'gemini-2.0-pro-exp-02-05': { inputPer1k: 0.00025, outputPer1k: 0.001 },
@@ -202,7 +203,7 @@ FOCUS AREAS:
     synthesis: {
       id: 'synthesis',
       title: 'Call 6: Synthesis',
-      model: 'gemini-2.0-flash',
+      model: 'gemini-3.0-flash',
       systemInstruction: 'You are the Lead Auditor. Compile the final JSON report based ONLY on the evidence provided.',
       promptTemplate: `You are the Lead Auditor. Compile the final JSON report based ONLY on the evidence provided below.
 

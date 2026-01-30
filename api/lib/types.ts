@@ -405,7 +405,7 @@ export const DEFAULT_PARALLEL_CONFIG: ParallelAuditConfig = {
     maxFindingsPerStage: 10,
   },
   gemini: {
-    model: 'gemini-2.0-flash',
+    model: 'gemini-3.0-flash',
     maxConcurrentCalls: 6,
   },
   chatgpt: {
