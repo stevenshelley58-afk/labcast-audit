@@ -81,6 +81,12 @@ export async function runCodebasePeekAudit(
       model: result.model,
       durationMs: Date.now() - startTime,
       cost: result.cost,
+      prompt: {
+        template: CODEBASE_PEEK_PROMPT,
+        resolved: prompt,
+        variables,
+        systemInstruction: 'You are a Frontend Code Quality Auditor. Respond with valid JSON only.'
+      }
     };
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
@@ -94,6 +100,12 @@ export async function runCodebasePeekAudit(
       durationMs: Date.now() - startTime,
       cost: 0,
       error,
+      prompt: {
+        template: CODEBASE_PEEK_PROMPT,
+        resolved: prompt,
+        variables,
+        systemInstruction: 'You are a Frontend Code Quality Auditor. Respond with valid JSON only.'
+      }
     };
   }
 }

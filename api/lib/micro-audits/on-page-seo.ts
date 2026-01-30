@@ -95,6 +95,12 @@ export async function runOnPageSeoAudit(
       model: result.model,
       durationMs: Date.now() - startTime,
       cost: result.cost,
+      prompt: {
+        template: ON_PAGE_SEO_PROMPT,
+        resolved: prompt,
+        variables,
+        systemInstruction: 'You are an On-Page SEO expert. Respond with valid JSON only.',
+      },
     };
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
@@ -108,6 +114,12 @@ export async function runOnPageSeoAudit(
       durationMs: Date.now() - startTime,
       cost: 0,
       error,
+      prompt: {
+        template: ON_PAGE_SEO_PROMPT,
+        resolved: prompt,
+        variables,
+        systemInstruction: 'You are an On-Page SEO expert. Respond with valid JSON only.',
+      },
     };
   }
 }

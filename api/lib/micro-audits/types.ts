@@ -65,6 +65,13 @@ export interface MicroAuditResult {
   cost: number;
   /** Error if failed */
   error?: string;
+  /** Prompt details for debugging */
+  prompt?: {
+    template: string;
+    resolved: string;
+    variables?: Record<string, unknown>;
+    systemInstruction?: string;
+  };
 }
 
 // ============================================================================

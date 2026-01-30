@@ -42,7 +42,8 @@ export async function runTechnicalSeoAudit(
     metaRobots: snapshot.metaRobots || 'Not set',
   };
 
-  const prompt = interpolatePrompt(TECHNICAL_SEO_PROMPT, variables);
+  const template = TECHNICAL_SEO_PROMPT;
+  const prompt = interpolatePrompt(template, variables);
 
   try {
     // Try primary provider, fall back if needed
@@ -83,6 +84,12 @@ export async function runTechnicalSeoAudit(
       model: result.model,
       durationMs: Date.now() - startTime,
       cost: result.cost,
+      prompt: {
+        template: TECHNICAL_SEO_PROMPT,
+        resolved: prompt,
+        variables,
+        systemInstruction: 'You are a Technical SEO expert. Respond with valid JSON only.',
+      },
     };
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
@@ -96,6 +103,12 @@ export async function runTechnicalSeoAudit(
       durationMs: Date.now() - startTime,
       cost: 0,
       error,
+      prompt: {
+        template: TECHNICAL_SEO_PROMPT,
+        resolved: prompt,
+        variables,
+        systemInstruction: 'You are a Technical SEO expert. Respond with valid JSON only.',
+      },
     };
   }
 }

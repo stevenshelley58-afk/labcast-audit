@@ -51,6 +51,12 @@ export async function runPerformanceAudit(
       durationMs: Date.now() - startTime,
       cost: 0,
       error: pageSpeed?.error || 'No PageSpeed data available',
+      prompt: {
+        template: PERFORMANCE_PROMPT,
+        resolved: '',
+        variables: {},
+        systemInstruction: 'You are a Web Performance Specialist. Respond with valid JSON only.',
+      },
     };
   }
 
@@ -117,6 +123,12 @@ export async function runPerformanceAudit(
       model: result.model,
       durationMs: Date.now() - startTime,
       cost: result.cost,
+      prompt: {
+        template: PERFORMANCE_PROMPT,
+        resolved: prompt,
+        variables,
+        systemInstruction: 'You are a Web Performance Specialist. Respond with valid JSON only.',
+      },
     };
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
@@ -131,6 +143,12 @@ export async function runPerformanceAudit(
       durationMs: Date.now() - startTime,
       cost: 0,
       error,
+      prompt: {
+        template: PERFORMANCE_PROMPT,
+        resolved: prompt,
+        variables,
+        systemInstruction: 'You are a Web Performance Specialist. Respond with valid JSON only.',
+      },
     };
   }
 }

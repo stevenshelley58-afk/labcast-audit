@@ -82,6 +82,12 @@ export interface GenerateResult {
   cost: number;
   /** Provider that handled the request */
   provider: ProviderName;
+  /** Request details for debugging */
+  requestDetails?: {
+    prompt: string;
+    systemInstruction?: string;
+    model: string;
+  };
 }
 
 export interface Provider {

@@ -50,7 +50,7 @@ export async function runContentQualityAudit(
         options: {
           model: assignment.model,
           systemInstruction:
-            'You are a Content Quality analyst. Respond with valid JSON only.',
+            'You are a Content Quality Analyst. Respond with valid JSON only.',
           responseFormat: 'json',
           temperature: 0.4,
         },
@@ -65,7 +65,7 @@ export async function runContentQualityAudit(
         prompt,
         options: {
           systemInstruction:
-            'You are a Content Quality analyst. Respond with valid JSON only.',
+            'You are a Content Quality Analyst. Respond with valid JSON only.',
           responseFormat: 'json',
           temperature: 0.4,
         },
@@ -89,6 +89,12 @@ export async function runContentQualityAudit(
       model: result.model,
       durationMs: Date.now() - startTime,
       cost: result.cost,
+      prompt: {
+        template: CONTENT_QUALITY_PROMPT,
+        resolved: prompt,
+        variables,
+        systemInstruction: 'You are a Content Quality Analyst. Respond with valid JSON only.',
+      },
     };
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
@@ -102,6 +108,12 @@ export async function runContentQualityAudit(
       durationMs: Date.now() - startTime,
       cost: 0,
       error,
+      prompt: {
+        template: CONTENT_QUALITY_PROMPT,
+        resolved: prompt,
+        variables,
+        systemInstruction: 'You are a Content Quality Analyst. Respond with valid JSON only.',
+      },
     };
   }
 }

@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AuditTrace, AuditConfig, AuditStepConfig } from '../types';
-import { X, Copy, Clock, Database, Image as ImageIcon, Terminal, Cpu, Settings, Save, DollarSign, Zap, ToggleLeft, ToggleRight, Activity, FileText } from 'lucide-react';
+import { X, Copy, Clock, Database, Image as ImageIcon, Terminal, Cpu, Settings, Save, DollarSign, Activity, FileText, Code, Wrench, Thermometer, Maximize2, Layers } from 'lucide-react';
 import { calculateStepCost, formatCost, AVAILABLE_MODELS } from '../src/lib/pricing';
-import type { HybridAuditReport, HybridAuditEvent } from '../src/hooks/useHybridAudit';
 
 interface AuditMetadata {
   totalCost: number;
@@ -18,11 +17,6 @@ interface DebugOverlayProps {
   onClose: () => void;
   metadata?: AuditMetadata | null;
   isSaving?: boolean;
-  // Hybrid mode props
-  hybridMode?: boolean;
-  hybridReport?: HybridAuditReport | null;
-  hybridEvents?: HybridAuditEvent[];
-  onToggleHybrid?: () => void;
 }
 
 export const DebugOverlay: React.FC<DebugOverlayProps> = ({
@@ -32,16 +26,12 @@ export const DebugOverlay: React.FC<DebugOverlayProps> = ({
   onClose,
   metadata,
   isSaving,
-  hybridMode = false,
-  hybridReport,
-  hybridEvents = [],
-  onToggleHybrid,
 }) => {
   const allTraces = propTraces || [];
 
   // Default to showing the last trace or the first config step if no traces exist
   const [selectedTraceId, setSelectedTraceId] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'overview' | 'prompt' | 'image' | 'response' | 'settings' | 'hybrid'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'prompt' | 'image' | 'response' | 'settings'>('overview');
   
   // Local state for editing to avoid constant re-renders/writes to parent state during typing
   const [editConfig, setEditConfig] = useState<AuditStepConfig | null>(null);
@@ -87,17 +77,30 @@ export const DebugOverlay: React.FC<DebugOverlayProps> = ({
       model: 'N/A',
       durationMs: 0,
       response: { usageMetadata: undefined, rawText: '{}' },
-      request: { systemInstruction: '', prompt: '', tools: [], image: undefined },
+      request: { 
+        systemInstruction: '', 
+        prompt: '', 
+        promptTemplate: '',
+        tools: [], 
+        toolsFull: [],
+        image: undefined,
+        imageSize: undefined,
+        temperature: undefined,
+        maxTokens: undefined,
+      },
       id: 'NO_TRACE',
       stepName: 'No Execution Data',
       stepId: 'unknown',
       timestamp: 0,
-      url: 'N/A'
+      url: 'N/A',
+      provider: undefined,
   };
 
   const totalTokens = displayTrace.response.usageMetadata?.totalTokenCount || 0;
   const inputTokens = displayTrace.response.usageMetadata?.promptTokenCount || 0;
   const outputTokens = displayTrace.response.usageMetadata?.candidatesTokenCount || 0;
+  const systemTokens = displayTrace.response.usageMetadata?.systemTokens || 0;
+  const promptOnlyTokens = displayTrace.response.usageMetadata?.promptTokens || 0;
   const stepCost = calculateStepCost(displayTrace.model, inputTokens, outputTokens);
   const totalCost = metadata?.totalCost ?? allTraces.reduce((sum, t) => {
     const input = t.response.usageMetadata?.promptTokenCount || 0;
@@ -111,20 +114,9 @@ export const DebugOverlay: React.FC<DebugOverlayProps> = ({
       <div className="flex items-center justify-between px-6 py-4 border-b border-green-900 bg-black">
         <div className="flex items-center gap-3">
             <Terminal size={20} />
-            <h2 className="text-lg font-bold tracking-widest uppercase">Shadow Trace // {hybridMode ? 'Hybrid Mode' : displayTrace.stepName}</h2>
+            <h2 className="text-lg font-bold tracking-widest uppercase">Shadow Trace // {displayTrace.stepName}</h2>
         </div>
         <div className="flex items-center gap-4">
-            {onToggleHybrid && (
-              <button
-                onClick={onToggleHybrid}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded text-xs font-bold transition-colors ${
-                  hybridMode ? 'bg-green-600 text-black' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                }`}
-              >
-                {hybridMode ? <ToggleRight size={16} /> : <ToggleLeft size={16} />}
-                {hybridMode ? 'Hybrid ON' : 'Hybrid OFF'}
-              </button>
-            )}
             <button onClick={onClose} className="hover:text-white transition-colors">
                 <X size={24} />
             </button>
@@ -192,15 +184,6 @@ export const DebugOverlay: React.FC<DebugOverlayProps> = ({
             </button>
 
             <div className="mt-auto border-t border-green-900/30">
-                 {hybridMode && (
-                   <button
-                      onClick={() => setActiveTab('hybrid')}
-                      className={`w-full px-6 py-4 text-left hover:bg-green-900/20 transition-colors flex items-center gap-3 ${activeTab === 'hybrid' ? 'bg-green-900/50 text-white' : 'text-green-400'}`}
-                  >
-                      <Zap size={16} />
-                      Hybrid Data
-                  </button>
-                 )}
                  <button
                     onClick={() => setActiveTab('settings')}
                     className={`w-full px-6 py-4 text-left hover:bg-green-900/20 transition-colors flex items-center gap-3 ${activeTab === 'settings' ? 'bg-green-900/50 text-white' : 'text-green-400'}`}
@@ -253,30 +236,132 @@ export const DebugOverlay: React.FC<DebugOverlayProps> = ({
 
             {activeTab === 'prompt' && (
                 <div className="space-y-6">
-                    <div className="flex justify-between items-center">
-                        <h3 className="text-white font-bold">Resolved System Instruction</h3>
-                        <button onClick={() => copyToClipboard(displayTrace.request.systemInstruction || '')} className="text-xs hover:text-white flex items-center gap-1"><Copy size={12}/> Copy</button>
+                    {/* Token Breakdown */}
+                    <div className="grid grid-cols-4 gap-4 mb-6">
+                        <div className="p-4 border border-green-800 rounded bg-green-900/10">
+                            <div className="text-xs text-green-400 uppercase tracking-widest mb-1">System Tokens</div>
+                            <div className="text-xl font-bold text-white">{systemTokens.toLocaleString()}</div>
+                        </div>
+                        <div className="p-4 border border-green-800 rounded bg-green-900/10">
+                            <div className="text-xs text-green-400 uppercase tracking-widest mb-1">Prompt Tokens</div>
+                            <div className="text-xl font-bold text-white">{promptOnlyTokens.toLocaleString()}</div>
+                        </div>
+                        <div className="p-4 border border-green-800 rounded bg-green-900/10">
+                            <div className="text-xs text-green-400 uppercase tracking-widest mb-1">Output Tokens</div>
+                            <div className="text-xl font-bold text-white">{outputTokens.toLocaleString()}</div>
+                        </div>
+                        <div className="p-4 border border-green-800 rounded bg-green-900/10">
+                            <div className="text-xs text-green-400 uppercase tracking-widest mb-1">Total</div>
+                            <div className="text-xl font-bold text-white">{totalTokens.toLocaleString()}</div>
+                        </div>
                     </div>
-                    <pre className="p-4 bg-gray-900 rounded border border-gray-800 whitespace-pre-wrap text-sm text-gray-300">
-                        {displayTrace.request.systemInstruction}
-                    </pre>
 
-                    <div className="flex justify-between items-center mt-8">
-                        <h3 className="text-white font-bold">Resolved Prompt</h3>
-                        <button onClick={() => copyToClipboard(displayTrace.request.prompt)} className="text-xs hover:text-white flex items-center gap-1"><Copy size={12}/> Copy</button>
+                    {/* Generation Config */}
+                    {(displayTrace.request.temperature !== undefined || displayTrace.request.maxTokens !== undefined) && (
+                        <div className="flex gap-4 mb-4">
+                            {displayTrace.request.temperature !== undefined && (
+                                <div className="flex items-center gap-2 text-xs text-gray-400">
+                                    <Thermometer size={14} className="text-yellow-500" />
+                                    Temperature: <span className="text-white">{displayTrace.request.temperature}</span>
+                                </div>
+                            )}
+                            {displayTrace.request.maxTokens !== undefined && (
+                                <div className="flex items-center gap-2 text-xs text-gray-400">
+                                    <Maximize2 size={14} className="text-blue-500" />
+                                    Max Tokens: <span className="text-white">{displayTrace.request.maxTokens}</span>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* System Instruction */}
+                    <div className="border border-gray-800 rounded overflow-hidden">
+                        <div className="flex justify-between items-center px-4 py-2 bg-gray-900 border-b border-gray-800">
+                            <h3 className="text-white font-bold flex items-center gap-2">
+                                <Cpu size={16} className="text-blue-400" />
+                                System Instruction
+                            </h3>
+                            <button onClick={() => copyToClipboard(displayTrace.request.systemInstruction || '')} className="text-xs hover:text-white flex items-center gap-1 text-gray-400"><Copy size={12}/> Copy</button>
+                        </div>
+                        <pre className="p-4 bg-black/50 whitespace-pre-wrap text-sm text-gray-300 max-h-[200px] overflow-auto">
+                            {displayTrace.request.systemInstruction || '(No system instruction)'}
+                        </pre>
                     </div>
-                    <pre className="p-4 bg-gray-900 rounded border border-gray-800 whitespace-pre-wrap text-sm text-gray-300 h-[500px] overflow-auto">
-                        {displayTrace.request.prompt}
-                    </pre>
+
+                    {/* Prompt Template (Raw) */}
+                    {displayTrace.request.promptTemplate && displayTrace.request.promptTemplate !== displayTrace.request.prompt && (
+                        <div className="border border-gray-800 rounded overflow-hidden">
+                            <div className="flex justify-between items-center px-4 py-2 bg-gray-900 border-b border-gray-800">
+                                <h3 className="text-white font-bold flex items-center gap-2">
+                                    <Code size={16} className="text-purple-400" />
+                                    Prompt Template (Raw)
+                                </h3>
+                                <button onClick={() => copyToClipboard(displayTrace.request.promptTemplate || '')} className="text-xs hover:text-white flex items-center gap-1 text-gray-400"><Copy size={12}/> Copy</button>
+                            </div>
+                            <pre className="p-4 bg-black/50 whitespace-pre-wrap text-sm text-gray-400 max-h-[300px] overflow-auto">
+                                {displayTrace.request.promptTemplate}
+                            </pre>
+                        </div>
+                    )}
+
+                    {/* Resolved Prompt */}
+                    <div className="border border-gray-800 rounded overflow-hidden">
+                        <div className="flex justify-between items-center px-4 py-2 bg-gray-900 border-b border-gray-800">
+                            <h3 className="text-white font-bold flex items-center gap-2">
+                                <Terminal size={16} className="text-green-400" />
+                                Resolved Prompt
+                                {displayTrace.request.promptTemplate === displayTrace.request.prompt && (
+                                    <span className="text-xs text-gray-500 font-normal">(No interpolation)</span>
+                                )}
+                            </h3>
+                            <button onClick={() => copyToClipboard(displayTrace.request.prompt)} className="text-xs hover:text-white flex items-center gap-1 text-gray-400"><Copy size={12}/> Copy</button>
+                        </div>
+                        <pre className="p-4 bg-black/50 whitespace-pre-wrap text-sm text-gray-300 max-h-[400px] overflow-auto">
+                            {displayTrace.request.prompt}
+                        </pre>
+                    </div>
+
+                    {/* Full Tool Configurations */}
+                    {displayTrace.request.toolsFull && displayTrace.request.toolsFull.length > 0 && (
+                        <div className="border border-gray-800 rounded overflow-hidden">
+                            <div className="flex justify-between items-center px-4 py-2 bg-gray-900 border-b border-gray-800">
+                                <h3 className="text-white font-bold flex items-center gap-2">
+                                    <Wrench size={16} className="text-orange-400" />
+                                    Tool Configurations
+                                </h3>
+                                <button onClick={() => copyToClipboard(JSON.stringify(displayTrace.request.toolsFull, null, 2))} className="text-xs hover:text-white flex items-center gap-1 text-gray-400"><Copy size={12}/> Copy JSON</button>
+                            </div>
+                            <pre className="p-4 bg-black/50 whitespace-pre-wrap text-xs text-gray-400 max-h-[300px] overflow-auto font-mono">
+                                {JSON.stringify(displayTrace.request.toolsFull, null, 2)}
+                            </pre>
+                        </div>
+                    )}
                 </div>
             )}
 
             {activeTab === 'image' && (
-                 <div className="flex flex-col items-center justify-center h-full">
+                 <div className="flex flex-col items-center justify-center h-full space-y-4">
                     {displayTrace.request.image ? (
-                        <div className="max-w-4xl w-full border border-green-800 p-2 bg-gray-900">
-                             <img src={`data:image/jpeg;base64,${displayTrace.request.image === '[Image Data]' ? '' : displayTrace.request.image}`} alt="Visual Input" className="w-full h-auto block" />
-                        </div>
+                        <>
+                            <div className="flex gap-4 text-xs text-gray-400">
+                                {displayTrace.request.imageSize && (
+                                    <span className="flex items-center gap-1">
+                                        <Database size={12} />
+                                        Size: {(displayTrace.request.imageSize / 1024).toFixed(1)} KB
+                                    </span>
+                                )}
+                                <span className="flex items-center gap-1">
+                                    <ImageIcon size={12} />
+                                    Type: JPEG
+                                </span>
+                                {displayTrace.request.image === '[Image Data]' && (
+                                    <span className="text-yellow-500">(Image data masked in trace)</span>
+                                )}
+                            </div>
+                            <div className="max-w-4xl w-full border border-green-800 p-2 bg-gray-900">
+                                 <img src={`data:image/jpeg;base64,${displayTrace.request.image === '[Image Data]' ? '' : displayTrace.request.image}`} alt="Visual Input" className="w-full h-auto block" />
+                            </div>
+                        </>
                     ) : (
                         <div className="text-gray-500">No visual input for this step.</div>
                     )}
@@ -362,172 +447,7 @@ export const DebugOverlay: React.FC<DebugOverlayProps> = ({
                 </div>
             )}
 
-            {activeTab === 'hybrid' && hybridMode && (
-                <div className="space-y-6 max-w-6xl h-full overflow-auto">
-                    {/* Hybrid Mode Header */}
-                    <div className="flex items-center justify-between pb-4 border-b border-green-900/30">
-                        <div>
-                            <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                                <Zap size={20} className="text-green-400" />
-                                Hybrid Audit Data
-                            </h2>
-                            <p className="text-xs text-gray-500 mt-1">4-layer audit pipeline with multi-provider support</p>
-                        </div>
-                    </div>
 
-                    {/* Scores Grid */}
-                    {hybridReport && (
-                        <div className="grid grid-cols-4 gap-4">
-                            <div className="p-4 border border-green-800 rounded bg-green-900/10">
-                                <div className="text-xs text-green-400 uppercase tracking-widest mb-1">Overall</div>
-                                <div className="text-3xl font-bold text-white">{hybridReport.scores.overall}</div>
-                            </div>
-                            <div className="p-4 border border-green-800 rounded bg-green-900/10">
-                                <div className="text-xs text-green-400 uppercase tracking-widest mb-1">Technical</div>
-                                <div className="text-2xl font-bold text-white">{hybridReport.scores.technical}</div>
-                            </div>
-                            <div className="p-4 border border-green-800 rounded bg-green-900/10">
-                                <div className="text-xs text-green-400 uppercase tracking-widest mb-1">On-Page</div>
-                                <div className="text-2xl font-bold text-white">{hybridReport.scores.onPage}</div>
-                            </div>
-                            <div className="p-4 border border-green-800 rounded bg-green-900/10">
-                                <div className="text-xs text-green-400 uppercase tracking-widest mb-1">Performance</div>
-                                <div className="text-2xl font-bold text-white">{hybridReport.scores.performance}</div>
-                            </div>
-                            <div className="p-4 border border-green-800 rounded bg-green-900/10">
-                                <div className="text-xs text-green-400 uppercase tracking-widest mb-1">Content</div>
-                                <div className="text-2xl font-bold text-white">{hybridReport.scores.content}</div>
-                            </div>
-                            <div className="p-4 border border-green-800 rounded bg-green-900/10">
-                                <div className="text-xs text-green-400 uppercase tracking-widest mb-1">Security</div>
-                                <div className="text-2xl font-bold text-white">{hybridReport.scores.security}</div>
-                            </div>
-                            <div className="p-4 border border-green-800 rounded bg-green-900/10">
-                                <div className="text-xs text-green-400 uppercase tracking-widest mb-1">Visual</div>
-                                <div className="text-2xl font-bold text-white">{hybridReport.scores.visual}</div>
-                            </div>
-                            <div className="p-4 border border-green-800 rounded bg-green-900/10">
-                                <div className="text-xs text-green-400 uppercase tracking-widest mb-1 flex items-center gap-1">
-                                    <DollarSign size={12} /> Cost
-                                </div>
-                                <div className="text-2xl font-bold text-white">{formatCost(hybridReport.metadata.totalCost)}</div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Metadata */}
-                    {hybridReport && (
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="p-4 border border-green-800 rounded bg-green-900/10">
-                                <div className="text-xs text-green-400 uppercase tracking-widest mb-2">Layer Timings</div>
-                                <div className="grid grid-cols-4 gap-2 text-xs">
-                                    <div className="text-gray-400">L1: <span className="text-white">{hybridReport.metadata.layerTimings.layer1}ms</span></div>
-                                    <div className="text-gray-400">L2: <span className="text-white">{hybridReport.metadata.layerTimings.layer2}ms</span></div>
-                                    <div className="text-gray-400">L3: <span className="text-white">{hybridReport.metadata.layerTimings.layer3}ms</span></div>
-                                    <div className="text-gray-400">L4: <span className="text-white">{hybridReport.metadata.layerTimings.layer4}ms</span></div>
-                                </div>
-                            </div>
-                            <div className="p-4 border border-green-800 rounded bg-green-900/10">
-                                <div className="text-xs text-green-400 uppercase tracking-widest mb-2">Providers & Audits</div>
-                                <div className="text-xs text-gray-400">
-                                    Providers: <span className="text-white">{hybridReport.metadata.providersUsed.join(', ')}</span>
-                                </div>
-                                <div className="text-xs text-gray-400 mt-1">
-                                    Completed: <span className="text-white">{hybridReport.metadata.completedAudits.length} audits</span>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Executive Summary */}
-                    {hybridReport && (
-                        <div className="p-4 border border-green-800 rounded bg-green-900/10">
-                            <div className="text-xs text-green-400 uppercase tracking-widest mb-2">Executive Summary</div>
-                            <p className="text-sm text-gray-300">{hybridReport.summary}</p>
-                        </div>
-                    )}
-
-                    {/* Findings */}
-                    {hybridReport && hybridReport.findings.length > 0 && (
-                        <div>
-                            <div className="text-xs text-green-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                                <FileText size={14} />
-                                Findings ({hybridReport.findings.length})
-                            </div>
-                            <div className="space-y-2 max-h-[400px] overflow-auto">
-                                {hybridReport.findings.map((f, i) => (
-                                    <div key={f.id} className="p-3 border border-gray-800 rounded bg-gray-900/50">
-                                        <div className="flex items-start justify-between gap-2">
-                                            <div className="flex-1">
-                                                <div className="flex items-center gap-2 mb-1">
-                                                    <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${
-                                                        f.priority === 'critical' ? 'bg-red-900 text-red-300' :
-                                                        f.priority === 'high' ? 'bg-orange-900 text-orange-300' :
-                                                        f.priority === 'medium' ? 'bg-yellow-900 text-yellow-300' :
-                                                        'bg-gray-700 text-gray-300'
-                                                    }`}>
-                                                        {f.priority.toUpperCase()}
-                                                    </span>
-                                                    <span className="text-[10px] text-gray-500">{f.category}</span>
-                                                    <span className="text-[10px] text-gray-600">via {f.source}</span>
-                                                </div>
-                                                <div className="text-sm text-white font-medium">{f.finding}</div>
-                                                <div className="text-xs text-gray-500 mt-1">Evidence: {f.evidence.substring(0, 100)}...</div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Events Log */}
-                    {hybridEvents.length > 0 && (
-                        <div>
-                            <div className="text-xs text-green-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                                <Activity size={14} />
-                                Event Log ({hybridEvents.length})
-                            </div>
-                            <div className="space-y-1 max-h-[300px] overflow-auto bg-gray-900 p-3 rounded border border-gray-800">
-                                {hybridEvents.map((e, i) => (
-                                    <div key={i} className="text-xs font-mono">
-                                        <span className="text-gray-600">{new Date(e.timestamp).toLocaleTimeString()}</span>
-                                        <span className={`ml-2 ${
-                                            e.type.includes('complete') ? 'text-green-400' :
-                                            e.type.includes('error') || e.type.includes('failed') ? 'text-red-400' :
-                                            e.type.includes('start') ? 'text-blue-400' :
-                                            'text-gray-400'
-                                        }`}>
-                                            [{e.type}]
-                                        </span>
-                                        <span className="text-gray-300 ml-2">{e.message || e.audit || ''}</span>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Explicit Gaps */}
-                    {hybridReport && hybridReport.explicitGaps.length > 0 && (
-                        <div className="p-4 border border-yellow-800 rounded bg-yellow-900/10">
-                            <div className="text-xs text-yellow-400 uppercase tracking-widest mb-2">Data Gaps</div>
-                            <ul className="text-xs text-yellow-300 space-y-1">
-                                {hybridReport.explicitGaps.map((gap, i) => (
-                                    <li key={i}>• {gap}</li>
-                                ))}
-                            </ul>
-                        </div>
-                    )}
-
-                    {!hybridReport && (
-                        <div className="text-center text-gray-500 py-12">
-                            <Zap size={48} className="mx-auto mb-4 opacity-30" />
-                            <p>No hybrid audit data available.</p>
-                            <p className="text-xs mt-2">Run an audit to see results here.</p>
-                        </div>
-                    )}
-                </div>
-            )}
         </div>
       </div>
     </div>

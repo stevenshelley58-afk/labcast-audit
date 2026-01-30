@@ -8,6 +8,8 @@ interface AuditStepConfig {
   model: string;
   systemInstruction: string;
   promptTemplate: string;
+  temperature?: number;
+  maxTokens?: number;
 }
 
 interface AuditConfig {
@@ -30,8 +32,13 @@ interface AuditTrace {
   request: {
     systemInstruction: string;
     prompt: string;
+    promptTemplate?: string;
     image?: string;
+    imageSize?: number;
     tools: string[];
+    toolsFull?: unknown[];
+    temperature?: number;
+    maxTokens?: number;
   };
   response: {
     rawText: string;
@@ -39,10 +46,13 @@ interface AuditTrace {
       promptTokenCount?: number;
       candidatesTokenCount?: number;
       totalTokenCount?: number;
+      systemTokens?: number;
+      promptTokens?: number;
     };
     urlContextMetadata?: UrlRetrievalMetadata[];
   };
   cost?: number;
+  provider?: 'gemini' | 'openai';
 }
 
 interface AuditReport {
@@ -388,6 +398,7 @@ async function runGeminiStep(
   stepId: string,
   stepConfig: AuditStepConfig,
   prompt: string,
+  promptTemplate?: string,
   image?: string,
   tools: unknown[] = [],
   responseSchema?: unknown,
@@ -428,6 +439,12 @@ async function runGeminiStep(
     const inputTokens = response.usageMetadata?.promptTokenCount || 0;
     const outputTokens = response.usageMetadata?.candidatesTokenCount || 0;
 
+    // Estimate token breakdown (system vs prompt)
+    // Rough heuristic: ~4 chars per token
+    const charsPerToken = 4;
+    const systemTokens = Math.ceil(stepConfig.systemInstruction.length / charsPerToken);
+    const promptOnlyTokens = Math.max(0, inputTokens - systemTokens);
+
     // Extract URL context metadata if available
     const urlContextMetadata: UrlRetrievalMetadata[] = [];
     const candidates = response.candidates;
@@ -453,15 +470,25 @@ async function runGeminiStep(
         request: {
           systemInstruction: stepConfig.systemInstruction,
           prompt,
+          promptTemplate: promptTemplate || prompt,
           image: image ? '[Image Data]' : undefined,
+          imageSize: image ? image.length : undefined,
           tools: allTools.map((t: unknown) => Object.keys(t as object)[0]),
+          toolsFull: allTools,
+          temperature: stepConfig.temperature,
+          maxTokens: stepConfig.maxTokens,
         },
         response: {
           rawText: text,
-          usageMetadata: response.usageMetadata,
+          usageMetadata: {
+            ...response.usageMetadata,
+            systemTokens,
+            promptTokens: promptOnlyTokens,
+          },
           urlContextMetadata: urlContextMetadata.length > 0 ? urlContextMetadata : undefined,
         },
         cost: calculateStepCost(stepConfig.model, inputTokens, outputTokens),
+        provider: 'gemini',
       },
     };
   } catch (err: unknown) {
@@ -479,11 +506,17 @@ async function runGeminiStep(
         request: {
           systemInstruction: stepConfig.systemInstruction,
           prompt,
+          promptTemplate: promptTemplate || prompt,
           image: undefined,
+          imageSize: undefined,
           tools: [],
+          toolsFull: [],
+          temperature: stepConfig.temperature,
+          maxTokens: stepConfig.maxTokens,
         },
         response: { rawText: error.message },
         cost: 0,
+        provider: 'gemini',
       },
     };
   }
@@ -587,10 +620,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Parallel analysis (Calls 1-4)
     const [visualStep, serpStep, crawlStep, techStep] = await Promise.all([
-      runGeminiStep(ai, 'visual', config.steps.visual, visualPrompt, base64Image || undefined),
-      runGeminiStep(ai, 'serp', config.steps.serp, serpPrompt, undefined, [{ googleSearch: {} }]),
-      runGeminiStep(ai, 'crawl', config.steps.crawl, crawlPrompt),
-      runGeminiStep(ai, 'technical', config.steps.technical, technicalPrompt),
+      runGeminiStep(ai, 'visual', config.steps.visual, visualPrompt, config.steps.visual.promptTemplate, base64Image || undefined),
+      runGeminiStep(ai, 'serp', config.steps.serp, serpPrompt, config.steps.serp.promptTemplate, undefined, [{ googleSearch: {} }]),
+      runGeminiStep(ai, 'crawl', config.steps.crawl, crawlPrompt, config.steps.crawl.promptTemplate),
+      runGeminiStep(ai, 'technical', config.steps.technical, technicalPrompt, config.steps.technical.promptTemplate),
     ]);
 
     // Collect traces for Calls 1-4
@@ -608,6 +641,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         'pdp',
         config.steps.pdp,
         pdpPrompt,
+        config.steps.pdp.promptTemplate,
         undefined,
         [],
         undefined,
@@ -668,6 +702,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       'synthesis',
       config.steps.synthesis,
       synthesisPromptResolved,
+      config.steps.synthesis.promptTemplate,
       undefined,
       [],
       responseSchema

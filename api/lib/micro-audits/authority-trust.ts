@@ -96,6 +96,12 @@ export async function runAuthorityTrustAudit(
       model: result.model,
       durationMs: Date.now() - startTime,
       cost: result.cost,
+      prompt: {
+        template: AUTHORITY_TRUST_PROMPT,
+        resolved: prompt,
+        variables,
+        systemInstruction: 'You are a Trust & Authority Analyst. Respond with valid JSON only.',
+      },
     };
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
@@ -109,6 +115,12 @@ export async function runAuthorityTrustAudit(
       durationMs: Date.now() - startTime,
       cost: 0,
       error,
+      prompt: {
+        template: AUTHORITY_TRUST_PROMPT,
+        resolved: prompt,
+        variables,
+        systemInstruction: 'You are a Trust & Authority Analyst. Respond with valid JSON only.',
+      },
     };
   }
 }

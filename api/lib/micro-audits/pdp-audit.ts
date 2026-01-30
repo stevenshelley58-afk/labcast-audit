@@ -94,6 +94,12 @@ export async function runPdpAudit(
       model: result.model,
       durationMs: Date.now() - startTime,
       cost: result.cost,
+      prompt: {
+        template: PDP_AUDIT_PROMPT,
+        resolved: prompt,
+        variables,
+        systemInstruction: 'You are an E-commerce Product Page Auditor. Respond with valid JSON only.',
+      },
     };
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
@@ -107,6 +113,12 @@ export async function runPdpAudit(
       durationMs: Date.now() - startTime,
       cost: 0,
       error,
+      prompt: {
+        template: PDP_AUDIT_PROMPT,
+        resolved: prompt,
+        variables,
+        systemInstruction: 'You are an E-commerce Product Page Auditor. Respond with valid JSON only.',
+      },
     };
   }
 }

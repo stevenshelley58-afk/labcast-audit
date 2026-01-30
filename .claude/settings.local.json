@@ -18,7 +18,21 @@
       "Bash(git push)",
       "Bash(npx tsc:*)",
       "Bash(timeout:*)",
-      "Bash(start http://localhost:3001)"
+      "Bash(start http://localhost:3001)",
+      "Bash(git reset:*)",
+      "Bash(findstr:*)",
+      "Bash(npm run dev:api:*)",
+      "Bash(curl:*)",
+      "Bash(ping:*)",
+      "Bash(taskkill:*)",
+      "Bash(git status:*)",
+      "Bash(npx vercel logs:*)",
+      "Bash(npx vercel list)",
+      "Bash(node -e:*)",
+      "Bash(npx ts-node -e \"import { SYNTHESIS_PROMPT } from ''./api/lib/synthesis/prompts''; console.log\\(''OK, length:'', SYNTHESIS_PROMPT.length\\)\")",
+      "Bash(git push:*)",
+      "Bash(cd:*)",
+      "Bash(git ls-tree:*)"
     ]
   }
 }

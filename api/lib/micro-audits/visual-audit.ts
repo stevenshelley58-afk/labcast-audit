@@ -53,6 +53,12 @@ export async function runVisualAuditUrlContext(
       model: result.model,
       durationMs: Date.now() - startTime,
       cost: result.cost,
+      prompt: {
+        template: VISUAL_AUDIT_URL_CONTEXT_PROMPT,
+        resolved: prompt,
+        variables: { url },
+        systemInstruction: 'You are a UX/Visual Design Auditor. Respond with valid JSON only.',
+      },
     };
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
@@ -66,6 +72,12 @@ export async function runVisualAuditUrlContext(
       durationMs: Date.now() - startTime,
       cost: 0,
       error,
+      prompt: {
+        template: VISUAL_AUDIT_URL_CONTEXT_PROMPT,
+        resolved: prompt,
+        variables: { url },
+        systemInstruction: 'You are a UX/Visual Design Auditor. Respond with valid JSON only.',
+      },
     };
   }
 }
@@ -126,6 +138,12 @@ export async function runVisualAuditScreenshot(
       model: result.model,
       durationMs: Date.now() - startTime,
       cost: result.cost,
+      prompt: {
+        template: VISUAL_AUDIT_SCREENSHOT_PROMPT,
+        resolved: VISUAL_AUDIT_SCREENSHOT_PROMPT,
+        variables: {},
+        systemInstruction: 'You are a UX/Visual Design Auditor. Respond with valid JSON only.',
+      },
     };
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
@@ -139,6 +157,12 @@ export async function runVisualAuditScreenshot(
       durationMs: Date.now() - startTime,
       cost: 0,
       error,
+      prompt: {
+        template: VISUAL_AUDIT_SCREENSHOT_PROMPT,
+        resolved: VISUAL_AUDIT_SCREENSHOT_PROMPT,
+        variables: {},
+        systemInstruction: 'You are a UX/Visual Design Auditor. Respond with valid JSON only.',
+      },
     };
   }
 }

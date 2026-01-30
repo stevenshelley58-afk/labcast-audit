@@ -159,6 +159,11 @@ export class GeminiProvider implements Provider {
         durationMs,
         cost,
         provider: 'gemini',
+        requestDetails: {
+          prompt: request.prompt,
+          systemInstruction: request.options?.systemInstruction,
+          model,
+        },
       };
     } finally {
       this.semaphore.release();

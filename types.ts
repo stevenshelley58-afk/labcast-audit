@@ -43,6 +43,8 @@ export interface AuditStepConfig {
   model: string;
   systemInstruction: string;
   promptTemplate: string;
+  temperature?: number;
+  maxTokens?: number;
 }
 
 export interface AuditConfig {
@@ -68,8 +70,13 @@ export interface AuditTrace {
   request: {
     systemInstruction: string;
     prompt: string;
-    image?: string; // base64
+    promptTemplate?: string; // Raw template before interpolation
+    image?: string; // base64 or '[Image Data]' placeholder
+    imageSize?: number; // Size in bytes
     tools: string[];
+    toolsFull?: unknown[]; // Full tool configuration objects
+    temperature?: number;
+    maxTokens?: number;
   };
   response: {
     rawText: string;
@@ -77,9 +84,13 @@ export interface AuditTrace {
       promptTokenCount?: number;
       candidatesTokenCount?: number;
       totalTokenCount?: number;
+      // Token breakdown estimates
+      systemTokens?: number;
+      promptTokens?: number;
     };
     urlContextMetadata?: UrlRetrievalMetadata[]; // URL context retrieval status
   };
+  provider?: 'gemini' | 'openai';
 }
 
 export interface AuditResult {
