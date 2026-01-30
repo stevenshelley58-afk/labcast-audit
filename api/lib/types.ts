@@ -5,7 +5,7 @@
  * All types support best-effort structure without strict schema locking.
  */
 
-import type { NormalizedUrl } from './url';
+import type { NormalizedUrl } from './url.js';
 
 // ============================================================================
 // Core Evidence Types

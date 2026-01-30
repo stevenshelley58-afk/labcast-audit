@@ -5,8 +5,8 @@
  * Implements single retry for transient errors as per architecture requirements.
  */
 
-import type { RobotsEvidence, SitemapEvidence, HeaderEvidence, HtmlEvidence } from './types';
-import { normalizeUrl } from './url';
+import type { RobotsEvidence, SitemapEvidence, HeaderEvidence, HtmlEvidence } from './types.js';
+import { normalizeUrl } from './url.js';
 
 // ============================================================================
 // Configuration

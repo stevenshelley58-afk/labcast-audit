@@ -5,8 +5,8 @@
  * Handles provider selection, fallback, and load balancing.
  */
 
-import { GeminiProvider, getGeminiProvider } from './gemini';
-import { OpenAIProvider, getOpenAIProvider } from './openai';
+import { GeminiProvider, getGeminiProvider } from './gemini.js';
+import { OpenAIProvider, getOpenAIProvider } from './openai.js';
 import type {
   Provider,
   ProviderName,
@@ -14,12 +14,12 @@ import type {
   GenerateResult,
   GeminiConfig,
   OpenAIConfig,
-} from './types';
+} from './types.js';
 
 // Re-export types and providers
-export * from './types';
-export { GeminiProvider, getGeminiProvider, generateWithGemini, generateWithUrlContext, generateWithGoogleSearch, generateFromImage } from './gemini';
-export { OpenAIProvider, getOpenAIProvider, generateWithOpenAI, generateFromImageOpenAI, generateJsonWithOpenAI } from './openai';
+export * from './types.js';
+export { GeminiProvider, getGeminiProvider, generateWithGemini, generateWithUrlContext, generateWithGoogleSearch, generateFromImage } from './gemini.js';
+export { OpenAIProvider, getOpenAIProvider, generateWithOpenAI, generateFromImageOpenAI, generateJsonWithOpenAI } from './openai.js';
 
 // ============================================================================
 // Provider Registry
