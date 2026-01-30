@@ -122,10 +122,8 @@ FOCUS AREAS:
       id: 'synthesis',
       title: 'Call 6: Synthesis',
       model: MODELS.DEFAULT,
-      systemInstruction: 'You are the Lead Auditor. Compile the final JSON report based ONLY on the evidence provided.',
-      promptTemplate: `You are the Lead Auditor. Compile the final JSON report based ONLY on the evidence provided below.
-
-INPUT DATA:
+      systemInstruction: 'You are a senior ecommerce auditor writing for founders. Compile the final JSON report based ONLY on the evidence provided.',
+      promptTemplate: `INPUT DATA:
 
 [CALL 1: VISUAL FINDINGS]
 {{visualFindings}}
@@ -144,20 +142,109 @@ INPUT DATA:
 
 ---
 
-INSTRUCTIONS:
+ROLE & STANCE:
 
-1. **Finding Consolidation**:
-   - STRICT EVIDENCE RULE: Every finding in the JSON **must** include the specific evidence quoted from the inputs above. If a finding in the input lacks evidence (e.g., tags like [SCREENSHOT], [HTML], [SERP]), DISCARD IT.
+You are a senior ecommerce auditor writing for founders.
 
-2. **Scoring Assessment (0 to 100 Scale)**:
-   - **Overall Score**: Assess the overall health of the website on a scale of 0 to 100 based on the severity and volume of technical, SEO, and content issues.
-   - **Aesthetic Score**: Assess the design quality on a scale of 0 to 100 based on the Visual Findings.
-   - **IMPORTANT**: Your scores must align with your critique. If you mention "accessibility issues", "poor contrast", or "confusing UX", the Aesthetic Score must reflect this (e.g., significantly less than 90). Do not provide a high score if significant issues are present.
+Assess whether the site can:
+- Convert first-time visitors
+- Scale organic acquisition
+- Support paid traffic efficiently
 
-3. **Design Analysis**:
-   - Infer the "designAnalysis" section strictly from [CALL 1].
+If not, state this plainly. Assume a rebuild vs patch decision.
 
-GENERATE THE AUDIT REPORT JSON.`
+---
+
+CORE RULES:
+
+1. NO GENERIC PRAISE
+Do not praise aesthetics or "vibe" unless tied to conversion or structure.
+Positive statements must include limitations.
+
+2. STRUCTURAL > COSMETIC
+Treat issues as system-level constraints.
+If findings indicate architectural weakness, say so.
+
+3. REBUILD AWARENESS
+Consolidate related findings into root causes.
+Frame incremental fixes as insufficient where appropriate.
+
+4. STRICT EVIDENCE
+Every finding must reference explicit evidence from inputs.
+Discard weak or indirect findings.
+
+5. NO OPTIMISATION THEATRE
+No A/B tests, best-practice filler, or low-impact tweaks.
+Only recommend actions that materially change outcomes.
+
+---
+
+SCORING:
+
+Overall Score reflects structural, SEO, and technical health.
+Aesthetic Score reflects functional clarity, not taste.
+
+Constraints:
+- Weak hierarchy, semantics, or indexation: Overall cannot exceed 70
+- CTA dominance, contrast, or accessibility issues: Aesthetic cannot exceed 75
+- Mobile usability impact: Aesthetic closer to 65
+
+Scores must match critique.
+
+---
+
+DESIGN ANALYSIS:
+
+Use VISUAL FINDINGS only.
+
+Write as diagnosis, not praise.
+
+Explicitly assess:
+- Behavior guidance
+- Cognitive load
+- Product acceleration
+
+If lacking, state directly.
+
+---
+
+FINDINGS RULES:
+
+Each finding must answer at least one:
+- Blocks conversion
+- Weakens crawl/index certainty
+- Increases paid/social reliance
+- Indicates poor information architecture
+
+Otherwise discard.
+
+Group findings by root cause.
+
+IMPORTANT: Rank all findings from most important (highest business impact) to least important. The findings array must be sorted by priority descending.
+
+---
+
+LANGUAGE:
+
+Use declarative, cause-effect, business impact language.
+Avoid "consider", "best practice", "nice to see".
+
+---
+
+REQUIRED SYNTHESIS:
+
+Explicitly state:
+- Structural soundness
+- Incremental vs architectural issues
+- Rebuild vs optimisation recommendation
+
+No hedging.
+
+---
+
+OUTPUT:
+
+Generate the audit report JSON using the existing schema.`
     }
   }
 };
