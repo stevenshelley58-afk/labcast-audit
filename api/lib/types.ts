@@ -405,7 +405,7 @@ export const DEFAULT_PARALLEL_CONFIG: ParallelAuditConfig = {
     maxFindingsPerStage: 10,
   },
   gemini: {
-    model: 'gemini-3.0-flash',
+    model: 'gemini-2.0-flash',
     maxConcurrentCalls: 6,
   },
   chatgpt: {
@@ -416,3 +416,167 @@ export const DEFAULT_PARALLEL_CONFIG: ParallelAuditConfig = {
   enablePdp: false,
   progressiveDelivery: true,
 };
+
+// ============================================================================
+// Hybrid Audit Types (4-Layer Pipeline)
+// ============================================================================
+
+export interface HybridAuditConfig {
+  /** Crawl depth for URL sampling */
+  crawlDepth: 'surface' | 'shallow' | 'deep';
+  /** Visual audit mode */
+  visualMode: 'url_context' | 'rendered' | 'both' | 'none';
+  /** Enable PageSpeed Insights */
+  psiEnabled: boolean;
+  /** Security analysis scope */
+  securityScope: 'headers_only' | 'full';
+  /** Provider configuration */
+  providers: {
+    gemini: {
+      maxConcurrent: number;
+    };
+    openai: {
+      maxConcurrent: number;
+    };
+  };
+  /** Enable codebase analysis */
+  enableCodebasePeek: boolean;
+  /** Enable PDP analysis */
+  enablePdp: boolean;
+}
+
+export const DEFAULT_HYBRID_CONFIG: HybridAuditConfig = {
+  crawlDepth: 'surface',
+  visualMode: 'url_context',
+  psiEnabled: true,
+  securityScope: 'headers_only',
+  providers: {
+    gemini: { maxConcurrent: 3 },
+    openai: { maxConcurrent: 2 },
+  },
+  enableCodebasePeek: true,
+  enablePdp: true,
+};
+
+export interface HybridAuditFinding {
+  /** Unique finding ID */
+  id: string;
+  /** Finding title/observation */
+  finding: string;
+  /** Evidence supporting this finding */
+  evidence: string;
+  /** Why this matters */
+  whyItMatters: string;
+  /** Recommended fix */
+  fix: string;
+  /** Priority level */
+  priority: 'critical' | 'high' | 'medium' | 'low';
+  /** Category */
+  category: 'seo' | 'technical' | 'design' | 'conversion' | 'content' | 'security';
+  /** Source audit */
+  source: string;
+  /** Confidence level */
+  confidence: 'high' | 'medium' | 'low';
+  /** Numeric priority score (1-5) */
+  priorityScore: number;
+}
+
+export interface HybridAuditScores {
+  overall: number;
+  technical: number;
+  onPage: number;
+  content: number;
+  performance: number;
+  security: number;
+  visual: number;
+}
+
+export interface HybridAuditReport {
+  /** URL audited */
+  url: string;
+  /** Optional PDP URL */
+  pdpUrl?: string;
+  /** Calculated scores */
+  scores: HybridAuditScores;
+  /** Executive summary */
+  summary: string;
+  /** All merged findings */
+  findings: HybridAuditFinding[];
+  /** Top issues with narratives */
+  topIssues: Array<{
+    title: string;
+    narrative: string;
+    relatedFindings: string[];
+    category: string;
+  }>;
+  /** Prioritized action items */
+  actionItems: Array<{
+    action: string;
+    rationale: string;
+    expectedImpact: string;
+    effort: string;
+    category: string;
+  }>;
+  /** Action plan buckets */
+  actionPlan: {
+    immediate: string[];
+    shortTerm: string[];
+    longTerm: string[];
+  };
+  /** Score justifications */
+  scoreJustifications: {
+    technical: string;
+    onPage: string;
+    content: string;
+    performance: string;
+    security: string;
+    overall: string;
+  };
+  /** Measurement gaps */
+  explicitGaps: string[];
+  /** Generation timestamp */
+  generatedAt: string;
+  /** Whether synthesis was used */
+  usedSynthesis: boolean;
+  /** Metadata */
+  metadata: {
+    totalCost: number;
+    totalDurationMs: number;
+    layerTimings: {
+      layer1: number;
+      layer2: number;
+      layer3: number;
+      layer4: number;
+    };
+    completedAudits: string[];
+    providersUsed: string[];
+  };
+}
+
+// ============================================================================
+// SSE Event Types for Hybrid Audit
+// ============================================================================
+
+export type HybridAuditEventType =
+  | 'audit:start'
+  | 'layer1:start'
+  | 'layer1:collector'
+  | 'layer1:complete'
+  | 'layer2:start'
+  | 'layer2:progress'
+  | 'layer2:complete'
+  | 'layer3:start'
+  | 'layer3:audit'
+  | 'layer3:finding'
+  | 'layer3:complete'
+  | 'layer4:start'
+  | 'layer4:complete'
+  | 'audit:complete'
+  | 'audit:error';
+
+export interface HybridAuditEvent {
+  type: HybridAuditEventType;
+  message?: string;
+  data?: unknown;
+  timestamp: string;
+}

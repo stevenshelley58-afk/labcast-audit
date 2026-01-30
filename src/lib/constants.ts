@@ -1,6 +1,6 @@
 export const MODELS = {
-  DEFAULT: 'gemini-3.0-flash',
-  VISION: 'gemini-3.0-flash',
+  DEFAULT: 'gemini-2.0-flash',
+  VISION: 'gemini-2.0-flash',
   PRO: 'gemini-2.0-pro-exp-02-05',
 } as const;
 
@@ -8,6 +8,7 @@ export const DEBUG_PASSWORD_HASH = '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc
 
 export const API_ENDPOINTS = {
   AUDIT: '/api/audit',
+  HYBRID_AUDIT: '/api/hybrid-audit',
   SCREENSHOT: '/api/screenshot',
 } as const;
 
