@@ -86,7 +86,7 @@ export function useAuditExecution() {
           addLog(funnyMessages[messageIndex], 200);
           messageIndex++;
         }
-      }, 800);
+      }, 2000);
 
       try {
         const result = await runAudit(targetUrl, pdpUrl, config, (msg) => {
