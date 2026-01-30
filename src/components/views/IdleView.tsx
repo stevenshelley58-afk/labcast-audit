@@ -1,19 +1,17 @@
 import React, { useState } from 'react';
-import { Globe, ArrowRight, CheckCircle2, ShoppingBag, ChevronDown } from 'lucide-react';
+import { Globe, ArrowRight, CheckCircle2 } from 'lucide-react';
 
 interface IdleViewProps {
-  onSubmit: (url: string, pdpUrl?: string) => void;
+  onSubmit: (url: string) => void;
 }
 
 export function IdleView({ onSubmit }: IdleViewProps) {
   const [url, setUrl] = useState('');
-  const [pdpUrl, setPdpUrl] = useState('');
-  const [showPdpInput, setShowPdpInput] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (url) {
-      onSubmit(url, pdpUrl || undefined);
+      onSubmit(url);
     }
   };
 
@@ -48,34 +46,6 @@ export function IdleView({ onSubmit }: IdleViewProps) {
             Audit
             <ArrowRight size={18} className="group-hover/btn:translate-x-1 transition-transform" />
           </button>
-        </div>
-
-        {/* PDP URL toggle and input */}
-        <div className="mt-4">
-          <button
-            type="button"
-            onClick={() => setShowPdpInput(!showPdpInput)}
-            className="text-sm text-gray-500 hover:text-black transition-colors flex items-center gap-1 mx-auto"
-          >
-            <ShoppingBag size={14} />
-            Add product page (optional)
-            <ChevronDown size={14} className={`transition-transform ${showPdpInput ? 'rotate-180' : ''}`} />
-          </button>
-
-          {showPdpInput && (
-            <div className="mt-3 relative group animate-fade-in">
-              <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
-                <ShoppingBag className="h-5 w-5 text-gray-400 group-focus-within:text-black transition-colors" />
-              </div>
-              <input
-                type="url"
-                placeholder="https://example.com/products/item"
-                className="w-full bg-white border border-gray-200 rounded-full py-4 pl-14 pr-6 text-base focus:outline-none focus:ring-4 focus:ring-black/5 focus:border-black transition-all shadow-lg shadow-black/5 placeholder-gray-300"
-                value={pdpUrl}
-                onChange={(e) => setPdpUrl(e.target.value)}
-              />
-            </div>
-          )}
         </div>
       </form>
 
