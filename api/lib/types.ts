@@ -409,7 +409,7 @@ export const DEFAULT_PARALLEL_CONFIG: ParallelAuditConfig = {
     maxConcurrentCalls: 6,
   },
   chatgpt: {
-    model: 'gpt-4o-mini',
+    model: 'gpt-4o',
     enabled: true,
     timeout: 30000,
   },
