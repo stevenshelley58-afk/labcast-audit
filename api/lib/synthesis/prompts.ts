@@ -10,20 +10,20 @@
 
 export const SYNTHESIS_PROMPT = `INPUT DATA:
 
-[CALL 1: VISUAL FINDINGS]
-{{visualFindings}}
+URL: {{url}}
 
-[CALL 2: SEARCH FINDINGS]
-{{searchFindings}}
+CURRENT SCORES:
+- Technical: {{technicalScore}}/100
+- On-Page SEO: {{onPageScore}}/100
+- Content: {{contentScore}}/100
+- Performance: {{performanceScore}}/100
+- Security: {{securityScore}}/100
 
-[CALL 3: CRAWL FINDINGS]
-{{crawlFindings}}
+FINDINGS (Prioritized):
+{{topFindings}}
 
-[CALL 4: TECHNICAL FINDINGS]
-{{technicalFindings}}
-
-[CALL 5: PDP FINDINGS]
-{{pdpFindings}}
+DATA GAPS:
+{{dataGaps}}
 
 ---
 
@@ -66,40 +66,12 @@ Only recommend actions that materially change outcomes.
 
 ---
 
-SCORING ASSESSMENT (0–100 SCALE):
+SCORING CONSTRAINTS (0–100 SCALE):
 
-Overall Score
-Assess overall site health based on severity and volume of structural, SEO, and technical issues.
-
-Aesthetic Score
-Assess functional clarity and usability, not taste or style.
-
-Scoring constraints:
 - Sites with weak hierarchy, missing semantic structure, or unclear indexation cannot score above 70 overall.
-- If hierarchy, CTA dominance, contrast, or accessibility issues are present, Aesthetic Score must be 75 or lower.
-- If issues materially affect mobile usability, Aesthetic Score should be closer to 65.
-
-Scores must align with critique. Do not inflate.
-
----
-
-DESIGN ANALYSIS:
-
-Derive this section strictly from [CALL 1: VISUAL FINDINGS].
-
-Write as a diagnosis, not a compliment.
-
-Explicitly assess:
-- Whether the design guides behavior
-- Whether it reduces cognitive load
-- Whether it accelerates users into products
-
-If it does not, state this directly.
-
-Use framing such as:
-- "On brand, but structurally inefficient"
-- "Expressive, but undisciplined"
-- "Communicates vibe faster than intent"
+- If hierarchy, CTA dominance, contrast, or accessibility issues are present, visual/aesthetic scores must be 75 or lower.
+- If issues materially affect mobile usability, scores should be closer to 65.
+- Scores must align with critique. Do not inflate.
 
 ---
 
@@ -144,9 +116,38 @@ Do not hedge.
 
 ---
 
-OUTPUT:
+OUTPUT FORMAT (JSON):
 
-Generate the audit report JSON using the existing schema.`;
+{
+  "executiveSummary": "string (2-3 sentences, state structural assessment plainly)",
+  "topIssues": [
+    {
+      "title": "string",
+      "narrative": "string (2-3 sentences explaining business impact)",
+      "relatedFindings": ["finding-id-1", "finding-id-2"],
+      "category": "technical|seo|content|performance|security"
+    }
+  ],
+  "nextSteps": [
+    {
+      "action": "string (specific, material action)",
+      "rationale": "string (cause → effect reasoning)",
+      "expectedImpact": "high|medium|low",
+      "effort": "low|medium|high",
+      "category": "technical|seo|content|performance|security"
+    }
+  ],
+  "scoreJustifications": {
+    "technical": "string",
+    "onPage": "string",
+    "content": "string",
+    "performance": "string",
+    "security": "string",
+    "overall": "string"
+  }
+}
+
+Output valid JSON only.`;
 
 // ============================================================================
 // Quick Synthesis Prompt (Fallback)
