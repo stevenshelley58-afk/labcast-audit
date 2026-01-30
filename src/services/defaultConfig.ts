@@ -89,9 +89,38 @@ Finding: [Observation]
 Evidence: [HTML] [Quote the actual tag/attribute]
 Why it matters: [Technical Health]`
     },
+    pdp: {
+      id: 'pdp',
+      title: 'Call 5: PDP Audit',
+      model: MODELS.DEFAULT,
+      systemInstruction: 'You are an E-commerce Product Page Auditor. Analyze the product page at the provided URL using URL context. Use only the provided URL, do not browse additional links.',
+      promptTemplate: `Analyze the product page at {{pdpUrl}} for conversion optimization.
+
+GLOBAL RULE: No finding is valid unless it includes EVIDENCE.
+Evidence must be:
+- Exact on-page text (quoted)
+- Specific element descriptions
+- Schema markup content
+
+OUTPUT FORMAT (Plain Text):
+Finding: [Observation]
+Evidence: [PDP] [Quote or element description]
+Why it matters: [Conversion Impact]
+
+FOCUS AREAS:
+- Product title and description clarity
+- Price visibility and formatting
+- Add to cart button (prominence, placement)
+- Product images presence and alt text
+- Reviews/ratings visibility
+- Trust signals (returns policy, shipping info, security badges)
+- Schema markup (Product, Offer, Review, AggregateRating)
+- Breadcrumb navigation
+- Cross-sell/upsell elements`
+    },
     synthesis: {
       id: 'synthesis',
-      title: 'Call 5: Synthesis',
+      title: 'Call 6: Synthesis',
       model: MODELS.DEFAULT,
       systemInstruction: 'You are the Lead Auditor. Compile the final JSON report based ONLY on the evidence provided.',
       promptTemplate: `You are the Lead Auditor. Compile the final JSON report based ONLY on the evidence provided below.
@@ -109,6 +138,9 @@ INPUT DATA:
 
 [CALL 4: TECHNICAL FINDINGS]
 {{technicalFindings}}
+
+[CALL 5: PDP FINDINGS]
+{{pdpFindings}}
 
 ---
 

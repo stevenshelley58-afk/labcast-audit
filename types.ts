@@ -51,6 +51,11 @@ export interface AuditConfig {
   }
 }
 
+export interface UrlRetrievalMetadata {
+  url: string;
+  status: string;
+}
+
 export interface AuditTrace {
   id: string;
   stepId: string; // Links back to AuditStepConfig.id
@@ -73,6 +78,7 @@ export interface AuditTrace {
       candidatesTokenCount?: number;
       totalTokenCount?: number;
     };
+    urlContextMetadata?: UrlRetrievalMetadata[]; // URL context retrieval status
   };
 }
 

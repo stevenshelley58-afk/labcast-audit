@@ -8,6 +8,7 @@ export interface AuditMetadata {
   totalCost: number;
   totalDurationMs: number;
   screenshotCaptured: boolean;
+  pdpAnalyzed: boolean;
 }
 
 export interface AuditResponse extends AuditResult {
@@ -37,6 +38,7 @@ function isApiErrorResponse(data: unknown): data is ApiErrorResponse {
 
 export async function runAudit(
   url: string,
+  pdpUrl?: string,
   config?: AuditConfig,
   onLog?: (message: string) => void
 ): Promise<AuditResponse> {
@@ -52,6 +54,20 @@ export async function runAudit(
     throw AuditError.invalidUrl(url);
   }
 
+  // Validate optional PDP URL
+  let normalizedPdpUrl: string | undefined;
+  if (pdpUrl) {
+    normalizedPdpUrl = pdpUrl.trim();
+    if (!/^https?:\/\//i.test(normalizedPdpUrl)) {
+      normalizedPdpUrl = 'https://' + normalizedPdpUrl;
+    }
+    try {
+      new URL(normalizedPdpUrl);
+    } catch {
+      throw AuditError.invalidUrl(pdpUrl);
+    }
+  }
+
   onLog?.('Sending request to audit API...');
 
   try {
@@ -62,6 +78,7 @@ export async function runAudit(
       },
       body: JSON.stringify({
         url: normalizedUrl,
+        pdpUrl: normalizedPdpUrl,
         config,
       }),
     });
@@ -123,7 +140,7 @@ export const generateAuditReport = async (
   onLog?: (msg: string) => void,
   config?: AuditConfig
 ): Promise<AuditResult> => {
-  const result = await runAudit(rawUrl, config, onLog);
+  const result = await runAudit(rawUrl, undefined, config, onLog);
   return {
     report: result.report,
     traces: result.traces,

@@ -29,7 +29,7 @@ export function useAuditExecution() {
     }]);
   }, []);
 
-  const executeAudit = useCallback(async (targetUrl: string, config: AuditConfig) => {
+  const executeAudit = useCallback(async (targetUrl: string, config: AuditConfig, pdpUrl?: string) => {
     if (!targetUrl) return;
 
     setUrl(targetUrl);
@@ -45,10 +45,13 @@ export function useAuditExecution() {
     try {
       await new Promise(r => setTimeout(r, 600));
       addLog(`Target Acquired: ${targetUrl}`, 200);
+      if (pdpUrl) {
+        addLog(`PDP Target: ${pdpUrl}`, 200);
+      }
 
       setStatus(AuditStatus.ANALYZING);
 
-      const result = await runAudit(targetUrl, config, (msg) => {
+      const result = await runAudit(targetUrl, pdpUrl, config, (msg) => {
         addLog(msg, 200);
       });
 

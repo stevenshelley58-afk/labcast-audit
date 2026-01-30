@@ -58,8 +58,8 @@ export default function App() {
   const { config, setConfig } = useAuditConfig();
   const debug = useDebugMode();
 
-  const handleSubmit = (url: string) => {
-    audit.executeAudit(url, config);
+  const handleSubmit = (url: string, pdpUrl?: string) => {
+    audit.executeAudit(url, config, pdpUrl);
   };
 
   const isLoading = audit.status === AuditStatus.CRAWLING || audit.status === AuditStatus.ANALYZING;

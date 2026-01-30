@@ -1,17 +1,19 @@
 import React, { useState } from 'react';
-import { Globe, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { Globe, ArrowRight, CheckCircle2, ShoppingBag, ChevronDown } from 'lucide-react';
 
 interface IdleViewProps {
-  onSubmit: (url: string) => void;
+  onSubmit: (url: string, pdpUrl?: string) => void;
 }
 
 export function IdleView({ onSubmit }: IdleViewProps) {
   const [url, setUrl] = useState('');
+  const [pdpUrl, setPdpUrl] = useState('');
+  const [showPdpInput, setShowPdpInput] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (url) {
-      onSubmit(url);
+      onSubmit(url, pdpUrl || undefined);
     }
   };
 
@@ -22,29 +24,59 @@ export function IdleView({ onSubmit }: IdleViewProps) {
         <span className="text-gray-400">Instantly.</span>
       </h2>
       <p className="text-xl text-gray-500 mb-12 leading-relaxed max-w-2xl mx-auto">
-        Full-spectrum SEO, Technical, and Design analysis powered by Gemini.
-        Enter a URL to begin the crawl.
+        SEO, technical, and design analysis in one scan. Enter a URL to get started.
       </p>
 
-      <form onSubmit={handleSubmit} className="relative max-w-xl mx-auto group">
-        <div className="absolute inset-y-0 left-0 pl-6 flex items-center pointer-events-none">
-          <Globe className="h-6 w-6 text-gray-400 group-focus-within:text-black transition-colors" />
+      <form onSubmit={handleSubmit} className="max-w-xl mx-auto">
+        {/* Homepage URL input */}
+        <div className="relative group">
+          <div className="absolute inset-y-0 left-0 pl-6 flex items-center pointer-events-none">
+            <Globe className="h-6 w-6 text-gray-400 group-focus-within:text-black transition-colors" />
+          </div>
+          <input
+            type="url"
+            required
+            placeholder="https://example.com"
+            className="w-full bg-white border border-gray-200 rounded-full py-6 pl-16 pr-36 text-lg focus:outline-none focus:ring-4 focus:ring-black/5 focus:border-black transition-all shadow-xl shadow-black/5 placeholder-gray-300"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+          />
+          <button
+            type="submit"
+            className="absolute right-2 top-2 bottom-2 bg-black text-white font-medium text-base px-8 rounded-full hover:bg-gray-800 transition-all flex items-center gap-2 group/btn"
+          >
+            Audit
+            <ArrowRight size={18} className="group-hover/btn:translate-x-1 transition-transform" />
+          </button>
         </div>
-        <input
-          type="url"
-          required
-          placeholder="https://example.com"
-          className="w-full bg-white border border-gray-200 rounded-full py-6 pl-16 pr-36 text-lg focus:outline-none focus:ring-4 focus:ring-black/5 focus:border-black transition-all shadow-xl shadow-black/5 placeholder-gray-300"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-        />
-        <button
-          type="submit"
-          className="absolute right-2 top-2 bottom-2 bg-black text-white font-medium text-base px-8 rounded-full hover:bg-gray-800 transition-all flex items-center gap-2 group/btn"
-        >
-          Audit
-          <ArrowRight size={18} className="group-hover/btn:translate-x-1 transition-transform" />
-        </button>
+
+        {/* PDP URL toggle and input */}
+        <div className="mt-4">
+          <button
+            type="button"
+            onClick={() => setShowPdpInput(!showPdpInput)}
+            className="text-sm text-gray-500 hover:text-black transition-colors flex items-center gap-1 mx-auto"
+          >
+            <ShoppingBag size={14} />
+            Add product page (optional)
+            <ChevronDown size={14} className={`transition-transform ${showPdpInput ? 'rotate-180' : ''}`} />
+          </button>
+
+          {showPdpInput && (
+            <div className="mt-3 relative group animate-fade-in">
+              <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
+                <ShoppingBag className="h-5 w-5 text-gray-400 group-focus-within:text-black transition-colors" />
+              </div>
+              <input
+                type="url"
+                placeholder="https://example.com/products/item"
+                className="w-full bg-white border border-gray-200 rounded-full py-4 pl-14 pr-6 text-base focus:outline-none focus:ring-4 focus:ring-black/5 focus:border-black transition-all shadow-lg shadow-black/5 placeholder-gray-300"
+                value={pdpUrl}
+                onChange={(e) => setPdpUrl(e.target.value)}
+              />
+            </div>
+          )}
+        </div>
       </form>
 
       <div className="mt-12 flex items-center justify-center gap-8 text-xs font-mono text-gray-400 uppercase tracking-widest">

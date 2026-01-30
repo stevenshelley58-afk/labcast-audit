@@ -14,6 +14,11 @@ interface AuditConfig {
   steps: Record<string, AuditStepConfig>;
 }
 
+interface UrlRetrievalMetadata {
+  url: string;
+  status: string;
+}
+
 interface AuditTrace {
   id: string;
   stepId: string;
@@ -35,6 +40,7 @@ interface AuditTrace {
       candidatesTokenCount?: number;
       totalTokenCount?: number;
     };
+    urlContextMetadata?: UrlRetrievalMetadata[];
   };
   cost?: number;
 }
@@ -164,9 +170,38 @@ Finding: [Observation]
 Evidence: [HTML] [Quote the actual tag/attribute]
 Why it matters: [Technical Health]`
     },
+    pdp: {
+      id: 'pdp',
+      title: 'Call 5: PDP Audit',
+      model: 'gemini-2.0-flash',
+      systemInstruction: 'You are an E-commerce Product Page Auditor. Analyze the product page at the provided URL using URL context. Use only the provided URL, do not browse additional links.',
+      promptTemplate: `Analyze the product page at {{pdpUrl}} for conversion optimization.
+
+GLOBAL RULE: No finding is valid unless it includes EVIDENCE.
+Evidence must be:
+- Exact on-page text (quoted)
+- Specific element descriptions
+- Schema markup content
+
+OUTPUT FORMAT (Plain Text):
+Finding: [Observation]
+Evidence: [PDP] [Quote or element description]
+Why it matters: [Conversion Impact]
+
+FOCUS AREAS:
+- Product title and description clarity
+- Price visibility and formatting
+- Add to cart button (prominence, placement)
+- Product images presence and alt text
+- Reviews/ratings visibility
+- Trust signals (returns policy, shipping info, security badges)
+- Schema markup (Product, Offer, Review, AggregateRating)
+- Breadcrumb navigation
+- Cross-sell/upsell elements`
+    },
     synthesis: {
       id: 'synthesis',
-      title: 'Call 5: Synthesis',
+      title: 'Call 6: Synthesis',
       model: 'gemini-2.0-flash',
       systemInstruction: 'You are the Lead Auditor. Compile the final JSON report based ONLY on the evidence provided.',
       promptTemplate: `You are the Lead Auditor. Compile the final JSON report based ONLY on the evidence provided below.
@@ -184,6 +219,9 @@ INPUT DATA:
 
 [CALL 4: TECHNICAL FINDINGS]
 {{technicalFindings}}
+
+[CALL 5: PDP FINDINGS]
+{{pdpFindings}}
 
 ---
 
@@ -267,7 +305,8 @@ async function runGeminiStep(
   prompt: string,
   image?: string,
   tools: unknown[] = [],
-  responseSchema?: unknown
+  responseSchema?: unknown,
+  useUrlContext: boolean = false
 ): Promise<{ text: string; trace: AuditTrace }> {
   const startTime = Date.now();
 
@@ -276,9 +315,15 @@ async function runGeminiStep(
     parts.push({ inlineData: { mimeType: 'image/jpeg', data: image } });
   }
 
+  // Build tools array, optionally adding URL context
+  const allTools: unknown[] = [...tools];
+  if (useUrlContext) {
+    allTools.push({ urlContext: {} });
+  }
+
   const config: Record<string, unknown> = {
     systemInstruction: stepConfig.systemInstruction,
-    tools: tools.length > 0 ? tools : undefined,
+    tools: allTools.length > 0 ? allTools : undefined,
   };
 
   if (responseSchema) {
@@ -298,6 +343,18 @@ async function runGeminiStep(
     const inputTokens = response.usageMetadata?.promptTokenCount || 0;
     const outputTokens = response.usageMetadata?.candidatesTokenCount || 0;
 
+    // Extract URL context metadata if available
+    const urlContextMetadata: UrlRetrievalMetadata[] = [];
+    const candidates = response.candidates;
+    if (candidates && candidates[0]?.urlContextMetadata?.urlMetadata) {
+      for (const meta of candidates[0].urlContextMetadata.urlMetadata) {
+        urlContextMetadata.push({
+          url: meta.retrievedUrl || 'unknown',
+          status: meta.urlRetrievalStatus || 'unknown',
+        });
+      }
+    }
+
     return {
       text,
       trace: {
@@ -312,11 +369,12 @@ async function runGeminiStep(
           systemInstruction: stepConfig.systemInstruction,
           prompt,
           image: image ? '[Image Data]' : undefined,
-          tools: tools.map((t: unknown) => Object.keys(t as object)[0]),
+          tools: allTools.map((t: unknown) => Object.keys(t as object)[0]),
         },
         response: {
           rawText: text,
           usageMetadata: response.usageMetadata,
+          urlContextMetadata: urlContextMetadata.length > 0 ? urlContextMetadata : undefined,
         },
         cost: calculateStepCost(stepConfig.model, inputTokens, outputTokens),
       },
@@ -360,7 +418,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   }
 
-  const { url: rawUrl, config: userConfig } = req.body;
+  const { url: rawUrl, pdpUrl: rawPdpUrl, config: userConfig } = req.body;
 
   if (!rawUrl || typeof rawUrl !== 'string') {
     return res.status(400).json({
@@ -381,6 +439,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({
       error: { code: 'INVALID_URL', message: `Invalid URL: ${rawUrl}` },
     });
+  }
+
+  // Normalize and validate optional PDP URL
+  let pdpUrl: string | null = null;
+  if (rawPdpUrl && typeof rawPdpUrl === 'string') {
+    pdpUrl = rawPdpUrl.trim();
+    if (!/^https?:\/\//i.test(pdpUrl)) {
+      pdpUrl = 'https://' + pdpUrl;
+    }
+    try {
+      new URL(pdpUrl);
+    } catch {
+      return res.status(400).json({
+        error: { code: 'INVALID_URL', message: `Invalid PDP URL: ${rawPdpUrl}` },
+      });
+    }
   }
 
   const config: AuditConfig = userConfig || DEFAULT_AUDIT_CONFIG;
@@ -426,7 +500,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       htmlContent,
     });
 
-    // Parallel analysis
+    // Parallel analysis (Calls 1-4)
     const [visualStep, serpStep, crawlStep, techStep] = await Promise.all([
       runGeminiStep(ai, 'visual', config.steps.visual, visualPrompt, base64Image || undefined),
       runGeminiStep(ai, 'serp', config.steps.serp, serpPrompt, undefined, [{ googleSearch: {} }]),
@@ -434,18 +508,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       runGeminiStep(ai, 'technical', config.steps.technical, technicalPrompt),
     ]);
 
-    // Collect traces
+    // Collect traces for Calls 1-4
     [visualStep, serpStep, crawlStep, techStep].forEach(step => {
       step.trace.url = url;
       traces.push(step.trace);
     });
 
-    // Synthesis
+    // PDP Analysis (Call 5) - only if pdpUrl provided, uses URL Context
+    let pdpStep: { text: string; trace: AuditTrace } | null = null;
+    if (pdpUrl && config.steps.pdp) {
+      const pdpPrompt = interpolate(config.steps.pdp.promptTemplate, { pdpUrl });
+      pdpStep = await runGeminiStep(
+        ai,
+        'pdp',
+        config.steps.pdp,
+        pdpPrompt,
+        undefined,
+        [],
+        undefined,
+        true  // useUrlContext = true
+      );
+      pdpStep.trace.url = pdpUrl;
+      traces.push(pdpStep.trace);
+    }
+
+    // Synthesis (Call 6)
     const synthesisPromptResolved = interpolate(config.steps.synthesis.promptTemplate, {
       visualFindings: visualStep.text,
       searchFindings: serpStep.text,
       crawlFindings: crawlStep.text,
       technicalFindings: techStep.text,
+      pdpFindings: pdpStep?.text || 'No PDP URL provided - PDP analysis skipped.',
     });
 
     const responseSchema = {
@@ -530,6 +623,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         totalCost,
         totalDurationMs: traces.reduce((sum, t) => sum + t.durationMs, 0),
         screenshotCaptured: !!base64Image,
+        pdpAnalyzed: !!pdpStep,
       },
     });
   } catch (error: unknown) {

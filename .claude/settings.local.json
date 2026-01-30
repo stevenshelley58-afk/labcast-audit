@@ -15,7 +15,10 @@
       "Bash(gh repo create:*)",
       "Bash(vercel:*)",
       "Bash(git commit:*)",
-      "Bash(git push)"
+      "Bash(git push)",
+      "Bash(npx tsc:*)",
+      "Bash(timeout:*)",
+      "Bash(start http://localhost:3001)"
     ]
   }
 }
