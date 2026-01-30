@@ -5,6 +5,8 @@
  * All types support best-effort structure without strict schema locking.
  */
 
+import type { NormalizedUrl } from './url';
+
 // ============================================================================
 // Core Evidence Types
 // ============================================================================
@@ -15,12 +17,7 @@ export interface RawEvidence {
   /** URL that was audited */
   url: string;
   /** Normalized URL components */
-  normalizedUrl: {
-    href: string;
-    origin: string;
-    hostname: string;
-    pathname: string;
-  };
+  normalizedUrl: NormalizedUrl;
 }
 
 export interface RobotsEvidence extends RawEvidence {
@@ -336,6 +333,7 @@ export interface EvidenceArchive {
   modelOutputs: {
     gemini: Record<string, string>;
     chatgpt?: string;
+    chatgpt_metadata?: string;
   };
   /** Parse status and drops */
   parseStatus: {
