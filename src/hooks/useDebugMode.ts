@@ -8,8 +8,8 @@ async function sha256(message: string): Promise<string> {
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-// Pre-computed hash of 'audit' - the default debug password
-const DEBUG_PASSWORD_HASH = 'f7db9674d3b614ed30b9e9dc1adc49d2a13cc49cfbc2d8c65abbe7d16a8d7ed3';
+// Pre-computed hash of 'audit5858' - the default debug password
+const DEBUG_PASSWORD_HASH = '9863d93c3ccf260aa33e127f3b11baf7d6ee471263de8ea8bb51724f1448577c';
 
 export function useDebugMode() {
   const [isVisible, setIsVisible] = useState(false);
