@@ -28,8 +28,13 @@ async function captureWithScreenshotOne(
 ): Promise<string | null> {
   const apiKey = process.env.SCREENSHOTONE_API_KEY;
   if (!apiKey) {
+    console.error("[ScreenshotOne] API key not found in environment");
     return null;
   }
+
+  // Log that we're attempting the capture (redact most of API key)
+  const redactedKey = apiKey.substring(0, 4) + "..." + apiKey.substring(apiKey.length - 4);
+  console.log(`[ScreenshotOne] Capturing ${mobile ? "mobile" : "desktop"} screenshot for: ${url} (key: ${redactedKey})`);
 
   const params = new URLSearchParams({
     access_key: apiKey,
@@ -42,7 +47,7 @@ async function captureWithScreenshotOne(
     block_cookie_banners: "true",
     block_trackers: "true",
     delay: "2", // Wait 2 seconds for page to render
-    timeout: "30",
+    timeout: "60", // Increased timeout to 60s (API max is 90s)
   });
 
   if (mobile) {
@@ -50,20 +55,83 @@ async function captureWithScreenshotOne(
   }
 
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 65000); // 65s fetch timeout (slightly longer than API timeout)
+
     const response = await fetch(
       `https://api.screenshotone.com/take?${params.toString()}`,
-      { signal: AbortSignal.timeout(30000) }
+      { signal: controller.signal }
     );
 
+    clearTimeout(timeoutId);
+
+    // Check content type to determine if we got an image or an error
+    const contentType = response.headers.get("content-type") || "";
+
     if (!response.ok) {
-      console.error(`ScreenshotOne API error: ${response.status}`);
+      // Try to parse error response if it's JSON
+      if (contentType.includes("application/json")) {
+        try {
+          const errorData = await response.json();
+          console.error(`[ScreenshotOne] API error (${response.status}):`, JSON.stringify(errorData));
+        } catch {
+          console.error(`[ScreenshotOne] API error: ${response.status} ${response.statusText}`);
+        }
+      } else {
+        const errorText = await response.text();
+        console.error(`[ScreenshotOne] API error (${response.status}): ${errorText.substring(0, 200)}`);
+      }
+      return null;
+    }
+
+    // Verify we got an image response
+    if (!contentType.includes("image/")) {
+      // ScreenshotOne might return JSON error with 200 status in some cases
+      if (contentType.includes("application/json")) {
+        try {
+          const data = await response.json();
+          if (data.error) {
+            console.error(`[ScreenshotOne] API returned error in 200 response:`, JSON.stringify(data.error));
+            return null;
+          }
+        } catch {
+          // Not JSON, continue
+        }
+      }
+      console.error(`[ScreenshotOne] Unexpected content type: ${contentType}`);
       return null;
     }
 
     const buffer = await response.arrayBuffer();
+
+    // Validate we got actual image data (PNG starts with specific bytes)
+    const bytes = new Uint8Array(buffer);
+    if (bytes.length < 8) {
+      console.error(`[ScreenshotOne] Response too small: ${bytes.length} bytes`);
+      return null;
+    }
+
+    // PNG magic bytes: 137 80 78 71 13 10 26 10
+    const isPng = bytes[0] === 137 && bytes[1] === 80 && bytes[2] === 78 && bytes[3] === 71;
+    if (!isPng) {
+      console.error(`[ScreenshotOne] Response is not a valid PNG (first bytes: ${bytes[0]}, ${bytes[1]}, ${bytes[2]}, ${bytes[3]})`);
+      return null;
+    }
+
+    console.log(`[ScreenshotOne] Successfully captured ${mobile ? "mobile" : "desktop"} screenshot: ${bytes.length} bytes`);
+
+    // Use Buffer.from for Node.js environments (Vercel serverless)
     return Buffer.from(buffer).toString("base64");
   } catch (error) {
-    console.error("ScreenshotOne capture failed:", error);
+    if (error instanceof Error) {
+      if (error.name === "AbortError") {
+        console.error(`[ScreenshotOne] Request timed out for ${mobile ? "mobile" : "desktop"} screenshot`);
+      } else {
+        console.error(`[ScreenshotOne] Capture failed:`, error.message);
+      }
+    } else {
+      console.error("[ScreenshotOne] Capture failed with unknown error:", error);
+    }
     return null;
   }
 }
@@ -105,20 +173,31 @@ export async function collectScreenshots(
     }
 
     console.log("[Screenshots] Using ScreenshotOne API for serverless environment");
+    console.log(`[Screenshots] Target URL: ${url}`);
+    console.log(`[Screenshots] SCREENSHOTONE_API_KEY is set: ${!!process.env.SCREENSHOTONE_API_KEY}`);
 
     try {
       // Capture desktop and mobile in parallel
+      const startTime = Date.now();
       const [desktop, mobile] = await Promise.all([
         captureWithScreenshotOne(url, { width: 1920, height: 1080 }, false),
         captureWithScreenshotOne(url, { width: 390, height: 844 }, true),
       ]);
+      const durationMs = Date.now() - startTime;
+
+      console.log(`[Screenshots] Capture completed in ${durationMs}ms - Desktop: ${desktop ? "success" : "failed"}, Mobile: ${mobile ? "success" : "failed"}`);
 
       if (!desktop && !mobile) {
         return {
           data: null,
-          error: "ScreenshotOne API failed to capture any screenshots",
+          error: "ScreenshotOne API failed to capture any screenshots. Check Vercel function logs for details.",
         };
       }
+
+      // Return partial success if only one screenshot was captured
+      const partialWarning = !desktop || !mobile
+        ? ` (partial: desktop=${!!desktop}, mobile=${!!mobile})`
+        : "";
 
       return {
         data: {
@@ -127,10 +206,11 @@ export async function collectScreenshots(
           finalUrl: url,
           consoleErrors: [], // API doesn't capture console errors
         },
-        error: null,
+        error: partialWarning ? `Some screenshots missing${partialWarning}` : null,
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(`[Screenshots] Unexpected error:`, errorMessage);
       return {
         data: null,
         error: `Screenshot API failed: ${errorMessage}`,
