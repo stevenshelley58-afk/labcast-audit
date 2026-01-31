@@ -29,7 +29,7 @@ import type {
   CategorySummary,
   AuditIdentity,
 } from "../audit.types.js";
-import type { JSONSchema } from "../llm/client.js";
+import type { JSONSchema, LLMResponse } from "../llm/client.js";
 import llmClient from "../llm/client.js";
 import { getSynthesisPrompt } from "../llm/prompts.js";
 import { redactSensitiveContent } from "../llm/redact.js";
@@ -40,11 +40,33 @@ import { TIMEOUT_LLM_SYNTHESIS, AUDIT_SYSTEM_VERSION } from "../audit.config.js"
 // ============================================================================
 
 /**
- * Result from synthesis - contains only public report
+ * Trace data from synthesis LLM call
+ */
+export interface SynthesisTrace {
+  stepId: string;
+  stepName: string;
+  model: string;
+  provider: "gemini" | "openai";
+  durationMs: number;
+  prompt: string;
+  promptTemplate: string;
+  systemInstruction: string;
+  response: string;
+  usageMetadata: {
+    promptTokenCount: number;
+    candidatesTokenCount: number;
+    totalTokenCount: number;
+  };
+  temperature?: number;
+}
+
+/**
+ * Result from synthesis - contains public report and trace data
  * Private flags are handled separately and never go through synthesis
  */
 export interface SynthesisResult {
   publicReport: PublicReport;
+  trace: SynthesisTrace | null;
 }
 
 /**
@@ -226,7 +248,9 @@ export async function synthesizeReport(
 
     // Step 6: Call LLM for synthesis (GPT-4o or fallback)
     console.log(`[Synthesis] Calling LLM with ${TIMEOUT_LLM_SYNTHESIS / 1000}s timeout...`);
-    const llmOutput = await llmClient.generateStructured<SynthesisLLMOutput>(
+    const systemInstruction = "You are an SEO expert synthesizing audit findings into actionable recommendations.";
+
+    const llmResult = await llmClient.generateStructuredWithMetadata<SynthesisLLMOutput>(
       prompt,
       schema,
       {
@@ -236,7 +260,7 @@ export async function synthesizeReport(
       }
     );
 
-    if (!llmOutput) {
+    if (!llmResult) {
       console.error("[Synthesis] LLM synthesis failed - returning null");
       return null;
     }
@@ -245,7 +269,7 @@ export async function synthesizeReport(
 
     // Step 7: Transform LLM output to PublicReport
     const publicReport = transformToPublicReport(
-      llmOutput,
+      llmResult.data,
       siteSnapshot.identity,
       coverage,
       deterministicFindings.length + llmFindings.length
@@ -253,7 +277,22 @@ export async function synthesizeReport(
 
     console.log(`[Synthesis] Synthesis complete. Overall score: ${publicReport.summary.score}`);
 
-    return { publicReport };
+    return {
+      publicReport,
+      trace: {
+        stepId: "synthesis",
+        stepName: "Report Synthesis",
+        model: llmResult.metadata.model,
+        provider: llmResult.metadata.provider,
+        durationMs: llmResult.metadata.durationMs,
+        prompt,
+        promptTemplate: prompt,
+        systemInstruction,
+        response: llmResult.metadata.text,
+        usageMetadata: llmResult.metadata.usageMetadata,
+        temperature: llmResult.metadata.temperature,
+      },
+    };
   } catch (error) {
     console.error("[Synthesis] Unexpected error during synthesis:", error);
     return null;

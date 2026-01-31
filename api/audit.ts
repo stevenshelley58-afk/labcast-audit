@@ -120,6 +120,23 @@ export default async function handler(
       ),
     ];
 
+    // Calculate total cost from traces
+    const totalCost = result.traces.reduce((sum, trace) => {
+      const inputTokens = trace.response.usageMetadata?.promptTokenCount || 0;
+      const outputTokens = trace.response.usageMetadata?.candidatesTokenCount || 0;
+      // Use simple pricing approximation
+      const pricing: Record<string, { input: number; output: number }> = {
+        'gemini-2.0-flash-exp': { input: 0.0001, output: 0.0004 },
+        'gemini-2.0-flash': { input: 0.0001, output: 0.0004 },
+        'gemini-2.5-flash': { input: 0.0001, output: 0.0004 },
+        'gemini-1.5-flash': { input: 0.000075, output: 0.0003 },
+        'gpt-4o': { input: 0.0025, output: 0.01 },
+        'gpt-4o-mini': { input: 0.00015, output: 0.0006 },
+      };
+      const modelPricing = pricing[trace.model] || { input: 0.00025, output: 0.001 };
+      return sum + (inputTokens / 1000) * modelPricing.input + (outputTokens / 1000) * modelPricing.output;
+    }, 0);
+
     // Return in frontend-expected format
     res.status(200).json({
       report: {
@@ -134,9 +151,9 @@ export default async function handler(
         findings,
         generatedAt: publicReport.generatedAt,
       },
-      traces: [],
+      traces: result.traces,
       metadata: {
-        totalCost: 0,
+        totalCost,
         totalDurationMs: result.timings.completedAt
           ? new Date(result.timings.completedAt).getTime() - new Date(result.timings.startedAt).getTime()
           : 0,

@@ -12,7 +12,7 @@
  * - Error handling that returns null on failure, never throws
  */
 
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenerativeAI, type GenerateContentResult } from "@google/generative-ai";
 import OpenAI from "openai";
 import {
   TIMEOUT_LLM_SYNTHESIS,
@@ -32,6 +32,32 @@ export interface LLMOptions {
   model?: string;
   timeout?: number;
   temperature?: number;
+  systemInstruction?: string;
+  maxTokens?: number;
+}
+
+/**
+ * Token usage metadata from LLM response
+ */
+export interface LLMUsageMetadata {
+  promptTokenCount: number;
+  candidatesTokenCount: number;
+  totalTokenCount: number;
+  systemTokens?: number;
+  promptTokens?: number;
+}
+
+/**
+ * Complete LLM response with metadata for tracing
+ */
+export interface LLMResponse {
+  text: string;
+  model: string;
+  provider: "gemini" | "openai";
+  durationMs: number;
+  usageMetadata: LLMUsageMetadata;
+  temperature?: number;
+  maxTokens?: number;
 }
 
 /**
@@ -58,6 +84,18 @@ export interface LLMClient {
     schema: JSONSchema,
     options?: LLMOptions
   ): Promise<T | null>;
+  // New methods that return full response with metadata
+  generateTextWithMetadata(prompt: string, options?: LLMOptions): Promise<LLMResponse | null>;
+  generateWithVisionAndMetadata(
+    prompt: string,
+    images: string[],
+    options?: LLMOptions
+  ): Promise<LLMResponse | null>;
+  generateStructuredWithMetadata<T>(
+    prompt: string,
+    schema: JSONSchema,
+    options?: LLMOptions
+  ): Promise<{ data: T; metadata: LLMResponse } | null>;
 }
 
 // ============================================================================
@@ -160,10 +198,22 @@ class GeminiProvider {
     temperature: number = DEFAULT_TEMPERATURE,
     timeoutMs: number = TIMEOUT_LLM_SYNTHESIS
   ): Promise<string | null> {
+    const result = await this.generateTextWithMetadata(prompt, model, temperature, timeoutMs);
+    return result?.text ?? null;
+  }
+
+  async generateTextWithMetadata(
+    prompt: string,
+    model: string = GEMINI_MODEL_TEXT,
+    temperature: number = DEFAULT_TEMPERATURE,
+    timeoutMs: number = TIMEOUT_LLM_SYNTHESIS
+  ): Promise<LLMResponse | null> {
     if (!this.client) {
       console.error("Gemini client not initialized - missing GEMINI_API_KEY");
       return null;
     }
+
+    const startTime = Date.now();
 
     return retryWithBackoff(async () => {
       const genModel = this.client!.getGenerativeModel({
@@ -171,7 +221,7 @@ class GeminiProvider {
         generationConfig: { temperature }
       });
 
-      const response = await withTimeout(
+      const response = await withTimeout<GenerateContentResult>(
         genModel.generateContent(prompt),
         timeoutMs,
         "Gemini text generation"
@@ -182,7 +232,20 @@ class GeminiProvider {
         throw new Error("Empty response from Gemini");
       }
 
-      return text;
+      const usageMetadata = response.response.usageMetadata;
+
+      return {
+        text,
+        model,
+        provider: "gemini" as const,
+        durationMs: Date.now() - startTime,
+        usageMetadata: {
+          promptTokenCount: usageMetadata?.promptTokenCount ?? 0,
+          candidatesTokenCount: usageMetadata?.candidatesTokenCount ?? 0,
+          totalTokenCount: usageMetadata?.totalTokenCount ?? 0,
+        },
+        temperature,
+      };
     });
   }
 
@@ -193,10 +256,23 @@ class GeminiProvider {
     temperature: number = DEFAULT_TEMPERATURE,
     timeoutMs: number = TIMEOUT_LLM_SYNTHESIS
   ): Promise<string | null> {
+    const result = await this.generateWithVisionAndMetadata(prompt, images, model, temperature, timeoutMs);
+    return result?.text ?? null;
+  }
+
+  async generateWithVisionAndMetadata(
+    prompt: string,
+    images: string[],
+    model: string = GEMINI_MODEL_VISION,
+    temperature: number = DEFAULT_TEMPERATURE,
+    timeoutMs: number = TIMEOUT_LLM_SYNTHESIS
+  ): Promise<LLMResponse | null> {
     if (!this.client) {
       console.error("Gemini client not initialized - missing GEMINI_API_KEY");
       return null;
     }
+
+    const startTime = Date.now();
 
     return retryWithBackoff(async () => {
       // Build content parts with images inline
@@ -230,7 +306,7 @@ class GeminiProvider {
         generationConfig: { temperature }
       });
 
-      const response = await withTimeout(
+      const response = await withTimeout<GenerateContentResult>(
         genModel.generateContent(parts),
         timeoutMs,
         "Gemini vision generation"
@@ -241,21 +317,47 @@ class GeminiProvider {
         throw new Error("Empty response from Gemini vision");
       }
 
-      return text;
+      const usageMetadata = response.response.usageMetadata;
+
+      return {
+        text,
+        model,
+        provider: "gemini" as const,
+        durationMs: Date.now() - startTime,
+        usageMetadata: {
+          promptTokenCount: usageMetadata?.promptTokenCount ?? 0,
+          candidatesTokenCount: usageMetadata?.candidatesTokenCount ?? 0,
+          totalTokenCount: usageMetadata?.totalTokenCount ?? 0,
+        },
+        temperature,
+      };
     });
   }
 
   async generateStructured<T>(
     prompt: string,
-    _schema: JSONSchema,
+    schema: JSONSchema,
     model: string = GEMINI_MODEL_TEXT,
     temperature: number = DEFAULT_TEMPERATURE,
     timeoutMs: number = TIMEOUT_LLM_SYNTHESIS
   ): Promise<T | null> {
+    const result = await this.generateStructuredWithMetadata<T>(prompt, schema, model, temperature, timeoutMs);
+    return result?.data ?? null;
+  }
+
+  async generateStructuredWithMetadata<T>(
+    prompt: string,
+    _schema: JSONSchema,
+    model: string = GEMINI_MODEL_TEXT,
+    temperature: number = DEFAULT_TEMPERATURE,
+    timeoutMs: number = TIMEOUT_LLM_SYNTHESIS
+  ): Promise<{ data: T; metadata: LLMResponse } | null> {
     if (!this.client) {
       console.error("Gemini client not initialized - missing GEMINI_API_KEY");
       return null;
     }
+
+    const startTime = Date.now();
 
     return retryWithBackoff(async () => {
       const genModel = this.client!.getGenerativeModel({
@@ -266,7 +368,7 @@ class GeminiProvider {
         }
       });
 
-      const response = await withTimeout(
+      const response = await withTimeout<GenerateContentResult>(
         genModel.generateContent(prompt),
         timeoutMs,
         "Gemini structured generation"
@@ -277,8 +379,24 @@ class GeminiProvider {
         throw new Error("Empty response from Gemini structured");
       }
 
+      const usageMetadata = response.response.usageMetadata;
+
       try {
-        return JSON.parse(text) as T;
+        return {
+          data: JSON.parse(text) as T,
+          metadata: {
+            text,
+            model,
+            provider: "gemini" as const,
+            durationMs: Date.now() - startTime,
+            usageMetadata: {
+              promptTokenCount: usageMetadata?.promptTokenCount ?? 0,
+              candidatesTokenCount: usageMetadata?.candidatesTokenCount ?? 0,
+              totalTokenCount: usageMetadata?.totalTokenCount ?? 0,
+            },
+            temperature,
+          },
+        };
       } catch (parseError) {
         console.error("Failed to parse Gemini structured response:", parseError);
         throw new Error("Invalid JSON response from Gemini");
@@ -311,10 +429,22 @@ class OpenAIProvider {
     temperature: number = DEFAULT_TEMPERATURE,
     timeoutMs: number = TIMEOUT_LLM_SYNTHESIS
   ): Promise<string | null> {
+    const result = await this.generateTextWithMetadata(prompt, model, temperature, timeoutMs);
+    return result?.text ?? null;
+  }
+
+  async generateTextWithMetadata(
+    prompt: string,
+    model: string = OPENAI_MODEL_SYNTHESIS,
+    temperature: number = DEFAULT_TEMPERATURE,
+    timeoutMs: number = TIMEOUT_LLM_SYNTHESIS
+  ): Promise<LLMResponse | null> {
     if (!this.client) {
       console.error("OpenAI client not initialized - missing OPENAI_API_KEY");
       return null;
     }
+
+    const startTime = Date.now();
 
     return retryWithBackoff(async () => {
       const response = await withTimeout(
@@ -332,7 +462,18 @@ class OpenAIProvider {
         throw new Error("Empty response from OpenAI");
       }
 
-      return content;
+      return {
+        text: content,
+        model,
+        provider: "openai" as const,
+        durationMs: Date.now() - startTime,
+        usageMetadata: {
+          promptTokenCount: response.usage?.prompt_tokens ?? 0,
+          candidatesTokenCount: response.usage?.completion_tokens ?? 0,
+          totalTokenCount: response.usage?.total_tokens ?? 0,
+        },
+        temperature,
+      };
     });
   }
 
@@ -343,10 +484,23 @@ class OpenAIProvider {
     temperature: number = DEFAULT_TEMPERATURE,
     timeoutMs: number = TIMEOUT_LLM_SYNTHESIS
   ): Promise<string | null> {
+    const result = await this.generateWithVisionAndMetadata(prompt, images, model, temperature, timeoutMs);
+    return result?.text ?? null;
+  }
+
+  async generateWithVisionAndMetadata(
+    prompt: string,
+    images: string[],
+    model: string = OPENAI_MODEL_SYNTHESIS,
+    temperature: number = DEFAULT_TEMPERATURE,
+    timeoutMs: number = TIMEOUT_LLM_SYNTHESIS
+  ): Promise<LLMResponse | null> {
     if (!this.client) {
       console.error("OpenAI client not initialized - missing OPENAI_API_KEY");
       return null;
     }
+
+    const startTime = Date.now();
 
     return retryWithBackoff(async () => {
       // Build content with images for GPT-4 Vision
@@ -382,21 +536,45 @@ class OpenAIProvider {
         throw new Error("Empty response from OpenAI vision");
       }
 
-      return result;
+      return {
+        text: result,
+        model,
+        provider: "openai" as const,
+        durationMs: Date.now() - startTime,
+        usageMetadata: {
+          promptTokenCount: response.usage?.prompt_tokens ?? 0,
+          candidatesTokenCount: response.usage?.completion_tokens ?? 0,
+          totalTokenCount: response.usage?.total_tokens ?? 0,
+        },
+        temperature,
+      };
     });
   }
 
   async generateStructured<T>(
     prompt: string,
-    _schema: JSONSchema,
+    schema: JSONSchema,
     model: string = OPENAI_MODEL_SYNTHESIS,
     temperature: number = DEFAULT_TEMPERATURE,
     timeoutMs: number = TIMEOUT_LLM_SYNTHESIS
   ): Promise<T | null> {
+    const result = await this.generateStructuredWithMetadata<T>(prompt, schema, model, temperature, timeoutMs);
+    return result?.data ?? null;
+  }
+
+  async generateStructuredWithMetadata<T>(
+    prompt: string,
+    _schema: JSONSchema,
+    model: string = OPENAI_MODEL_SYNTHESIS,
+    temperature: number = DEFAULT_TEMPERATURE,
+    timeoutMs: number = TIMEOUT_LLM_SYNTHESIS
+  ): Promise<{ data: T; metadata: LLMResponse } | null> {
     if (!this.client) {
       console.error("OpenAI client not initialized - missing OPENAI_API_KEY");
       return null;
     }
+
+    const startTime = Date.now();
 
     return retryWithBackoff(async () => {
       const response = await withTimeout(
@@ -416,7 +594,21 @@ class OpenAIProvider {
       }
 
       try {
-        return JSON.parse(content) as T;
+        return {
+          data: JSON.parse(content) as T,
+          metadata: {
+            text: content,
+            model,
+            provider: "openai" as const,
+            durationMs: Date.now() - startTime,
+            usageMetadata: {
+              promptTokenCount: response.usage?.prompt_tokens ?? 0,
+              candidatesTokenCount: response.usage?.completion_tokens ?? 0,
+              totalTokenCount: response.usage?.total_tokens ?? 0,
+            },
+            temperature,
+          },
+        };
       } catch (parseError) {
         console.error("Failed to parse OpenAI structured response:", parseError);
         throw new Error("Invalid JSON response from OpenAI");
@@ -445,6 +637,17 @@ class UnifiedLLMClient implements LLMClient {
     prompt: string,
     options: LLMOptions = {}
   ): Promise<string | null> {
+    const result = await this.generateTextWithMetadata(prompt, options);
+    return result?.text ?? null;
+  }
+
+  /**
+   * Generate text with full metadata for tracing
+   */
+  async generateTextWithMetadata(
+    prompt: string,
+    options: LLMOptions = {}
+  ): Promise<LLMResponse | null> {
     const {
       provider,
       model,
@@ -455,7 +658,7 @@ class UnifiedLLMClient implements LLMClient {
     try {
       // Use specified provider or default to OpenAI for synthesis
       if (provider === "gemini") {
-        return await this.gemini.generateText(
+        return await this.gemini.generateTextWithMetadata(
           prompt,
           model || GEMINI_MODEL_TEXT,
           temperature,
@@ -465,7 +668,7 @@ class UnifiedLLMClient implements LLMClient {
 
       // Default: OpenAI for synthesis
       if (this.openai.isAvailable()) {
-        const result = await this.openai.generateText(
+        const result = await this.openai.generateTextWithMetadata(
           prompt,
           model || OPENAI_MODEL_SYNTHESIS,
           temperature,
@@ -476,7 +679,7 @@ class UnifiedLLMClient implements LLMClient {
 
       // Fallback to Gemini if OpenAI fails or unavailable
       if (this.gemini.isAvailable()) {
-        return await this.gemini.generateText(
+        return await this.gemini.generateTextWithMetadata(
           prompt,
           model || GEMINI_MODEL_TEXT,
           temperature,
@@ -487,7 +690,7 @@ class UnifiedLLMClient implements LLMClient {
       console.error("No LLM provider available");
       return null;
     } catch (error) {
-      console.error("generateText failed:", error);
+      console.error("generateTextWithMetadata failed:", error);
       return null;
     }
   }
@@ -500,6 +703,18 @@ class UnifiedLLMClient implements LLMClient {
     images: string[],
     options: LLMOptions = {}
   ): Promise<string | null> {
+    const result = await this.generateWithVisionAndMetadata(prompt, images, options);
+    return result?.text ?? null;
+  }
+
+  /**
+   * Generate with vision with full metadata for tracing
+   */
+  async generateWithVisionAndMetadata(
+    prompt: string,
+    images: string[],
+    options: LLMOptions = {}
+  ): Promise<LLMResponse | null> {
     const {
       provider,
       model,
@@ -510,7 +725,7 @@ class UnifiedLLMClient implements LLMClient {
     try {
       // Use specified provider or default to Gemini for vision
       if (provider === "openai") {
-        return await this.openai.generateWithVision(
+        return await this.openai.generateWithVisionAndMetadata(
           prompt,
           images,
           model || OPENAI_MODEL_SYNTHESIS,
@@ -521,7 +736,7 @@ class UnifiedLLMClient implements LLMClient {
 
       // Default: Gemini for vision
       if (this.gemini.isAvailable()) {
-        const result = await this.gemini.generateWithVision(
+        const result = await this.gemini.generateWithVisionAndMetadata(
           prompt,
           images,
           model || GEMINI_MODEL_VISION,
@@ -533,7 +748,7 @@ class UnifiedLLMClient implements LLMClient {
 
       // Fallback to OpenAI if Gemini fails or unavailable
       if (this.openai.isAvailable()) {
-        return await this.openai.generateWithVision(
+        return await this.openai.generateWithVisionAndMetadata(
           prompt,
           images,
           model || OPENAI_MODEL_SYNTHESIS,
@@ -545,7 +760,7 @@ class UnifiedLLMClient implements LLMClient {
       console.error("No LLM provider available for vision");
       return null;
     } catch (error) {
-      console.error("generateWithVision failed:", error);
+      console.error("generateWithVisionAndMetadata failed:", error);
       return null;
     }
   }
@@ -558,6 +773,18 @@ class UnifiedLLMClient implements LLMClient {
     schema: JSONSchema,
     options: LLMOptions = {}
   ): Promise<T | null> {
+    const result = await this.generateStructuredWithMetadata<T>(prompt, schema, options);
+    return result?.data ?? null;
+  }
+
+  /**
+   * Generate structured output with full metadata for tracing
+   */
+  async generateStructuredWithMetadata<T>(
+    prompt: string,
+    schema: JSONSchema,
+    options: LLMOptions = {}
+  ): Promise<{ data: T; metadata: LLMResponse } | null> {
     const {
       provider,
       model,
@@ -568,7 +795,7 @@ class UnifiedLLMClient implements LLMClient {
     try {
       // Use specified provider or default to OpenAI for structured output
       if (provider === "gemini") {
-        return await this.gemini.generateStructured<T>(
+        return await this.gemini.generateStructuredWithMetadata<T>(
           prompt,
           schema,
           model || GEMINI_MODEL_TEXT,
@@ -579,7 +806,7 @@ class UnifiedLLMClient implements LLMClient {
 
       // Default: OpenAI for structured output
       if (this.openai.isAvailable()) {
-        const result = await this.openai.generateStructured<T>(
+        const result = await this.openai.generateStructuredWithMetadata<T>(
           prompt,
           schema,
           model || OPENAI_MODEL_SYNTHESIS,
@@ -591,7 +818,7 @@ class UnifiedLLMClient implements LLMClient {
 
       // Fallback to Gemini if OpenAI fails or unavailable
       if (this.gemini.isAvailable()) {
-        return await this.gemini.generateStructured<T>(
+        return await this.gemini.generateStructuredWithMetadata<T>(
           prompt,
           schema,
           model || GEMINI_MODEL_TEXT,
@@ -603,7 +830,7 @@ class UnifiedLLMClient implements LLMClient {
       console.error("No LLM provider available for structured output");
       return null;
     } catch (error) {
-      console.error("generateStructured failed:", error);
+      console.error("generateStructuredWithMetadata failed:", error);
       return null;
     }
   }

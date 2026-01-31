@@ -45,12 +45,47 @@ import {
 import { rawSnapshotCache, siteSnapshotCache } from "./cache/store.js";
 import { collectAll } from "./collectors/collectAll.js";
 import { extractAll } from "./extractors/extractAll.js";
-import { runAllAudits } from "./audits/runAudits.js";
-import { synthesizeReport } from "./synthesis/synthesize.js";
+import { runAllAudits, type AuditTrace } from "./audits/runAudits.js";
+import { synthesizeReport, type SynthesisTrace } from "./synthesis/synthesize.js";
 
 // ============================================================================
 // TYPES
 // ============================================================================
+
+/**
+ * Frontend-compatible trace format
+ */
+export interface FrontendTrace {
+  id: string;
+  stepId: string;
+  stepName: string;
+  timestamp: number;
+  url: string;
+  model: string;
+  durationMs: number;
+  provider: "gemini" | "openai";
+  request: {
+    systemInstruction: string;
+    prompt: string;
+    promptTemplate: string;
+    image?: string;
+    imageSize?: number;
+    tools: string[];
+    toolsFull?: unknown[];
+    temperature?: number;
+    maxTokens?: number;
+  };
+  response: {
+    rawText: string;
+    usageMetadata?: {
+      promptTokenCount?: number;
+      candidatesTokenCount?: number;
+      totalTokenCount?: number;
+      systemTokens?: number;
+      promptTokens?: number;
+    };
+  };
+}
 
 /**
  * Complete audit result returned by runAuditPipeline
@@ -64,6 +99,8 @@ export interface AuditResult {
   privateFlags: PrivateFlags;
   /** Coverage and limitations of this audit */
   coverage: CoverageLimitations;
+  /** LLM execution traces for debugging */
+  traces: FrontendTrace[];
   /** Timing information */
   timings: {
     startedAt: string;
@@ -215,11 +252,12 @@ export async function runAuditPipeline(
 
     const allFindings: AuditFinding[] = auditsOutput.findings;
     const privateFlagsFromAudits: PrivateFlag[] = auditsOutput.privateFlags;
+    const auditTraces: AuditTrace[] = auditsOutput.traces;
 
     stageTimers.stage3.end = Date.now();
     stageTimers.stage3.duration = stageTimers.stage3.end - stageTimers.stage3.start;
 
-    console.log(`[AuditRunner] Stage 3 complete: ${allFindings.length} findings (${privateFlagsFromAudits.length} private flags)`);
+    console.log(`[AuditRunner] Stage 3 complete: ${allFindings.length} findings (${privateFlagsFromAudits.length} private flags, ${auditTraces.length} traces)`);
 
     // ========================================================================
     // STAGE 4: Synthesis (3rd LLM call)
@@ -257,6 +295,78 @@ export async function runAuditPipeline(
 
     const completedAt = new Date().toISOString();
 
+    // Collect all traces and convert to frontend format
+    const allTraces: FrontendTrace[] = [];
+    let traceIndex = 0;
+
+    // Get screenshot data for visual trace if available
+    const desktopScreenshot = rawSnapshot.screenshots.data?.desktop || null;
+
+    // Add audit traces (visual, SERP)
+    for (const trace of auditTraces) {
+      // Include actual screenshot for visual trace
+      const isVisualTrace = trace.stepId === "visual";
+      const imageData = isVisualTrace && desktopScreenshot ? desktopScreenshot : undefined;
+
+      allTraces.push({
+        id: `trace-${traceIndex++}`,
+        stepId: trace.stepId,
+        stepName: trace.stepName,
+        timestamp: Date.now(),
+        url: identity.normalizedUrl,
+        model: trace.model,
+        durationMs: trace.durationMs,
+        provider: trace.provider,
+        request: {
+          systemInstruction: trace.systemInstruction,
+          prompt: trace.prompt,
+          promptTemplate: trace.promptTemplate,
+          image: imageData,
+          imageSize: trace.imageSize,
+          tools: [],
+          temperature: trace.temperature,
+        },
+        response: {
+          rawText: trace.response,
+          usageMetadata: {
+            promptTokenCount: trace.usageMetadata.promptTokenCount,
+            candidatesTokenCount: trace.usageMetadata.candidatesTokenCount,
+            totalTokenCount: trace.usageMetadata.totalTokenCount,
+          },
+        },
+      });
+    }
+
+    // Add synthesis trace if available
+    if (synthesisResult?.trace) {
+      const synthTrace = synthesisResult.trace;
+      allTraces.push({
+        id: `trace-${traceIndex++}`,
+        stepId: synthTrace.stepId,
+        stepName: synthTrace.stepName,
+        timestamp: Date.now(),
+        url: identity.normalizedUrl,
+        model: synthTrace.model,
+        durationMs: synthTrace.durationMs,
+        provider: synthTrace.provider,
+        request: {
+          systemInstruction: synthTrace.systemInstruction,
+          prompt: synthTrace.prompt,
+          promptTemplate: synthTrace.promptTemplate,
+          tools: [],
+          temperature: synthTrace.temperature,
+        },
+        response: {
+          rawText: synthTrace.response,
+          usageMetadata: {
+            promptTokenCount: synthTrace.usageMetadata.promptTokenCount,
+            candidatesTokenCount: synthTrace.usageMetadata.candidatesTokenCount,
+            totalTokenCount: synthTrace.usageMetadata.totalTokenCount,
+          },
+        },
+      });
+    }
+
     // Build public report (synthesis may fail, have fallback)
     let publicReport: PublicReport;
 
@@ -284,6 +394,7 @@ export async function runAuditPipeline(
       publicReport,
       privateFlags,
       coverage: siteSnapshot.coverage,
+      traces: allTraces,
       timings: {
         startedAt,
         completedAt,
@@ -503,6 +614,7 @@ function createErrorAuditResult(url: string, errorMessage: string): AuditResult 
       runId,
       cacheKey: "error",
     },
+    traces: [],
     publicReport: {
       identity: {
         normalizedUrl,

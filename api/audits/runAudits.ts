@@ -14,8 +14,31 @@ import { auditCrawl } from "./crawl.audit.js";
 import { auditTechnical } from "./technical.audit.js";
 import { auditSecurity, type SecurityAuditResult } from "./security.audit.js";
 import { auditPerformance } from "./performance.audit.js";
-import { runVisualAudit } from "./visual.audit.js";
-import { runSerpAudit } from "./serp.audit.js";
+import { runVisualAuditWithTrace, type VisualAuditResult } from "./visual.audit.js";
+import { runSerpAuditWithTrace, type SerpAuditResult } from "./serp.audit.js";
+
+/**
+ * Trace data from an LLM audit step
+ */
+export interface AuditTrace {
+  stepId: string;
+  stepName: string;
+  model: string;
+  provider: "gemini" | "openai";
+  durationMs: number;
+  prompt: string;
+  promptTemplate: string;
+  systemInstruction: string;
+  response: string;
+  usageMetadata: {
+    promptTokenCount: number;
+    candidatesTokenCount: number;
+    totalTokenCount: number;
+  };
+  temperature?: number;
+  hasImage?: boolean;
+  imageSize?: number;
+}
 
 /**
  * Result from running deterministic audits only
@@ -332,20 +355,21 @@ export function deduplicateFindings(findings: AuditFinding[]): AuditFinding[] {
 export interface RunAllAuditsResult {
   findings: AuditFinding[];
   privateFlags: PrivateFlag[];
+  traces: AuditTrace[];
 }
 
 /**
  * Runs all audits: deterministic first, then LLM-powered (visual + SERP).
- * 
+ *
  * This is the main entry point for complete audit execution.
  * - Runs deterministic audits (crawl, technical, security, performance)
  * - Runs visual audit with Gemini vision (30s timeout)
  * - Runs SERP audit with Gemini 2.5 Flash (30s timeout)
  * - LLM failures are handled gracefully (return empty arrays)
- * 
+ *
  * @param siteSnapshot - SiteSnapshot from extractors
  * @param rawSnapshot - RawSnapshot for additional data access
- * @returns All findings and private flags combined
+ * @returns All findings, private flags, and LLM traces
  */
 export async function runAllAudits(
   siteSnapshot: SiteSnapshot,
@@ -353,34 +377,44 @@ export async function runAllAudits(
 ): Promise<RunAllAuditsResult> {
   // Step 1: Run deterministic audits first (synchronous, fast)
   const deterministicResult = runAudits(siteSnapshot, rawSnapshot);
-  
+
   // Collect all findings from deterministic audits
   const allFindings: AuditFinding[] = [];
   const allPrivateFlags: PrivateFlag[] = [...deterministicResult.privateFlags];
-  
+  const allTraces: AuditTrace[] = [];
+
   // Flatten deterministic findings
   for (const findings of Object.values(deterministicResult.findings)) {
     allFindings.push(...findings);
   }
-  
+
   // Step 2: Run LLM audits in parallel (async, with timeouts)
   // These fail gracefully - if they timeout or error, we still get empty arrays
-  const [visualFindings, serpFindings] = await Promise.all([
-    runVisualAudit(rawSnapshot, siteSnapshot).catch((error) => {
+  const [visualResult, serpResult] = await Promise.all([
+    runVisualAuditWithTrace(rawSnapshot, siteSnapshot).catch((error) => {
       console.error("Visual audit failed (non-blocking):", error);
-      return [] as AuditFinding[];
+      return { findings: [], trace: null } as VisualAuditResult;
     }),
-    runSerpAudit(rawSnapshot, siteSnapshot).catch((error) => {
+    runSerpAuditWithTrace(rawSnapshot, siteSnapshot).catch((error) => {
       console.error("SERP audit failed (non-blocking):", error);
-      return [] as AuditFinding[];
+      return { findings: [], trace: null } as SerpAuditResult;
     }),
   ]);
-  
+
   // Add LLM findings to the collection
-  allFindings.push(...visualFindings, ...serpFindings);
-  
+  allFindings.push(...visualResult.findings, ...serpResult.findings);
+
+  // Collect traces from LLM audits
+  if (visualResult.trace) {
+    allTraces.push(visualResult.trace);
+  }
+  if (serpResult.trace) {
+    allTraces.push(serpResult.trace);
+  }
+
   return {
     findings: allFindings,
     privateFlags: allPrivateFlags,
+    traces: allTraces,
   };
 }

@@ -13,8 +13,34 @@
  */
 
 import type { RawSnapshot, SiteSnapshot, AuditFinding } from "../audit.types.js";
-import llmClient from "../llm/client.js";
+import llmClient, { type LLMResponse } from "../llm/client.js";
 import { getVisualAuditPrompt } from "../llm/prompts.js";
+
+/**
+ * Result from visual audit including trace data for debugging
+ */
+export interface VisualAuditResult {
+  findings: AuditFinding[];
+  trace: {
+    stepId: string;
+    stepName: string;
+    model: string;
+    provider: "gemini" | "openai";
+    durationMs: number;
+    prompt: string;
+    promptTemplate: string;
+    systemInstruction: string;
+    response: string;
+    usageMetadata: {
+      promptTokenCount: number;
+      candidatesTokenCount: number;
+      totalTokenCount: number;
+    };
+    temperature?: number;
+    hasImage: boolean;
+    imageSize?: number;
+  } | null;
+}
 
 /**
  * Timeout for visual audit LLM call (30 seconds)
@@ -23,19 +49,34 @@ const TIMEOUT_VISUAL_AUDIT = 30000;
 
 /**
  * Runs visual audit using LLM vision analysis
- * 
+ *
  * @param rawSnapshot - RawSnapshot containing screenshots
  * @param siteSnapshot - SiteSnapshot containing page signals
- * @returns Array of visual audit findings (empty on failure)
+ * @returns Visual audit result with findings and trace data
  */
 export async function runVisualAudit(
   rawSnapshot: RawSnapshot,
   siteSnapshot: SiteSnapshot
 ): Promise<AuditFinding[]> {
+  const result = await runVisualAuditWithTrace(rawSnapshot, siteSnapshot);
+  return result.findings;
+}
+
+/**
+ * Runs visual audit with full trace data for debugging
+ *
+ * @param rawSnapshot - RawSnapshot containing screenshots
+ * @param siteSnapshot - SiteSnapshot containing page signals
+ * @returns Visual audit result with findings and trace data
+ */
+export async function runVisualAuditWithTrace(
+  rawSnapshot: RawSnapshot,
+  siteSnapshot: SiteSnapshot
+): Promise<VisualAuditResult> {
   // Check if screenshots exist
   if (!rawSnapshot.screenshots.data) {
     console.log("Visual audit skipped: no screenshot data available");
-    return [];
+    return { findings: [], trace: null };
   }
 
   const { desktop, mobile } = rawSnapshot.screenshots.data;
@@ -43,7 +84,7 @@ export async function runVisualAudit(
   // Need at least one screenshot to analyze
   if (!desktop && !mobile) {
     console.log("Visual audit skipped: no desktop or mobile screenshots");
-    return [];
+    return { findings: [], trace: null };
   }
 
   // Extract page signals for context
@@ -54,16 +95,23 @@ export async function runVisualAudit(
 
   // Build prompt with URL and deterministic signals
   const prompt = getVisualAuditPrompt(siteSnapshot.identity.normalizedUrl);
+  const systemInstruction = "You are a UX and design expert analyzing website screenshots for usability issues.";
 
   // Collect available images
   const images: string[] = [];
   if (desktop) images.push(desktop);
   if (mobile) images.push(mobile);
 
+  // Calculate image size
+  const imageSize = images.reduce((total, img) => {
+    // Base64 is ~4/3 larger than binary
+    return total + Math.ceil((img.length * 3) / 4);
+  }, 0);
+
   try {
-    // Call LLM with vision capability
-    const response = await Promise.race([
-      llmClient.generateWithVision(prompt, images, {
+    // Call LLM with vision capability and get metadata
+    const llmResponse = await Promise.race([
+      llmClient.generateWithVisionAndMetadata(prompt, images, {
         provider: "gemini",
         timeout: TIMEOUT_VISUAL_AUDIT,
         temperature: 0.3, // Lower temperature for consistent analysis
@@ -73,21 +121,38 @@ export async function runVisualAudit(
       ),
     ]);
 
-    if (!response) {
+    if (!llmResponse) {
       console.error("Visual audit failed: LLM returned null response");
-      return [];
+      return { findings: [], trace: null };
     }
 
     // Parse JSON response
-    const parsed = parseVisualAuditResponse(response);
-    
+    const parsed = parseVisualAuditResponse(llmResponse.text);
+
     if (!parsed || !Array.isArray(parsed.findings)) {
       console.error("Visual audit failed: invalid response format");
-      return [];
+      return {
+        findings: [],
+        trace: {
+          stepId: "visual",
+          stepName: "Visual Analysis",
+          model: llmResponse.model,
+          provider: llmResponse.provider,
+          durationMs: llmResponse.durationMs,
+          prompt,
+          promptTemplate: prompt,
+          systemInstruction,
+          response: llmResponse.text,
+          usageMetadata: llmResponse.usageMetadata,
+          temperature: llmResponse.temperature,
+          hasImage: true,
+          imageSize,
+        }
+      };
     }
 
     // Convert to AuditFinding format
-    return parsed.findings.map((finding): AuditFinding => ({
+    const findings = parsed.findings.map((finding): AuditFinding => ({
       type: mapVisualCategoryToFindingType(finding.category),
       severity: mapVisualSeverity(finding.severity),
       message: finding.description,
@@ -106,9 +171,28 @@ export async function runVisualAudit(
       },
     }));
 
+    return {
+      findings,
+      trace: {
+        stepId: "visual",
+        stepName: "Visual Analysis",
+        model: llmResponse.model,
+        provider: llmResponse.provider,
+        durationMs: llmResponse.durationMs,
+        prompt,
+        promptTemplate: prompt,
+        systemInstruction,
+        response: llmResponse.text,
+        usageMetadata: llmResponse.usageMetadata,
+        temperature: llmResponse.temperature,
+        hasImage: true,
+        imageSize,
+      },
+    };
+
   } catch (error) {
     console.error("Visual audit error:", error instanceof Error ? error.message : "Unknown error");
-    return [];
+    return { findings: [], trace: null };
   }
 }
 

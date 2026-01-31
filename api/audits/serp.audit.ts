@@ -13,8 +13,32 @@
  */
 
 import type { RawSnapshot, SiteSnapshot, AuditFinding } from "../audit.types.js";
-import llmClient from "../llm/client.js";
+import llmClient, { type LLMResponse } from "../llm/client.js";
 import { getSerpAuditPrompt } from "../llm/prompts.js";
+
+/**
+ * Result from SERP audit including trace data for debugging
+ */
+export interface SerpAuditResult {
+  findings: AuditFinding[];
+  trace: {
+    stepId: string;
+    stepName: string;
+    model: string;
+    provider: "gemini" | "openai";
+    durationMs: number;
+    prompt: string;
+    promptTemplate: string;
+    systemInstruction: string;
+    response: string;
+    usageMetadata: {
+      promptTokenCount: number;
+      candidatesTokenCount: number;
+      totalTokenCount: number;
+    };
+    temperature?: number;
+  } | null;
+}
 
 /**
  * Timeout for SERP audit LLM call (30 seconds)
@@ -23,7 +47,7 @@ const TIMEOUT_SERP_AUDIT = 30000;
 
 /**
  * Runs SERP audit using LLM text analysis
- * 
+ *
  * @param rawSnapshot - RawSnapshot containing SERP data
  * @param siteSnapshot - SiteSnapshot containing page titles/descriptions
  * @returns Array of SERP audit findings (empty on failure)
@@ -32,10 +56,25 @@ export async function runSerpAudit(
   rawSnapshot: RawSnapshot,
   siteSnapshot: SiteSnapshot
 ): Promise<AuditFinding[]> {
+  const result = await runSerpAuditWithTrace(rawSnapshot, siteSnapshot);
+  return result.findings;
+}
+
+/**
+ * Runs SERP audit with full trace data for debugging
+ *
+ * @param rawSnapshot - RawSnapshot containing SERP data
+ * @param siteSnapshot - SiteSnapshot containing page titles/descriptions
+ * @returns SERP audit result with findings and trace data
+ */
+export async function runSerpAuditWithTrace(
+  rawSnapshot: RawSnapshot,
+  siteSnapshot: SiteSnapshot
+): Promise<SerpAuditResult> {
   // Check if SERP data exists
   if (!rawSnapshot.serpRaw.data) {
     console.log("SERP audit skipped: no SERP data available");
-    return [];
+    return { findings: [], trace: null };
   }
 
   const serpData = rawSnapshot.serpRaw.data;
@@ -43,7 +82,7 @@ export async function runSerpAudit(
   // Need at least a query to analyze
   if (!serpData.query) {
     console.log("SERP audit skipped: no query in SERP data");
-    return [];
+    return { findings: [], trace: null };
   }
 
   // Extract page titles and descriptions from siteSnapshot
@@ -59,11 +98,12 @@ export async function runSerpAudit(
     serpData.results,
     pageTitles
   );
+  const systemInstruction = "You are an SEO expert analyzing search engine results and page metadata.";
 
   try {
-    // Call LLM for text analysis
-    const response = await Promise.race([
-      llmClient.generateText(prompt, {
+    // Call LLM for text analysis with metadata
+    const llmResponse = await Promise.race([
+      llmClient.generateTextWithMetadata(prompt, {
         provider: "gemini",
         model: "gemini-2.5-flash",
         timeout: TIMEOUT_SERP_AUDIT,
@@ -74,21 +114,36 @@ export async function runSerpAudit(
       ),
     ]);
 
-    if (!response) {
+    if (!llmResponse) {
       console.error("SERP audit failed: LLM returned null response");
-      return [];
+      return { findings: [], trace: null };
     }
 
     // Parse JSON response
-    const parsed = parseSerpAuditResponse(response);
-    
+    const parsed = parseSerpAuditResponse(llmResponse.text);
+
     if (!parsed || !Array.isArray(parsed.findings)) {
       console.error("SERP audit failed: invalid response format");
-      return [];
+      return {
+        findings: [],
+        trace: {
+          stepId: "serp",
+          stepName: "SERP Analysis",
+          model: llmResponse.model,
+          provider: llmResponse.provider,
+          durationMs: llmResponse.durationMs,
+          prompt,
+          promptTemplate: prompt,
+          systemInstruction,
+          response: llmResponse.text,
+          usageMetadata: llmResponse.usageMetadata,
+          temperature: llmResponse.temperature,
+        }
+      };
     }
 
     // Convert to AuditFinding format
-    return parsed.findings.map((finding): AuditFinding => ({
+    const findings = parsed.findings.map((finding): AuditFinding => ({
       type: mapSerpTypeToFindingType(finding.type),
       severity: mapSerpImpactToSeverity(finding.impact),
       message: finding.description,
@@ -101,9 +156,26 @@ export async function runSerpAudit(
       },
     }));
 
+    return {
+      findings,
+      trace: {
+        stepId: "serp",
+        stepName: "SERP Analysis",
+        model: llmResponse.model,
+        provider: llmResponse.provider,
+        durationMs: llmResponse.durationMs,
+        prompt,
+        promptTemplate: prompt,
+        systemInstruction,
+        response: llmResponse.text,
+        usageMetadata: llmResponse.usageMetadata,
+        temperature: llmResponse.temperature,
+      },
+    };
+
   } catch (error) {
     console.error("SERP audit error:", error instanceof Error ? error.message : "Unknown error");
-    return [];
+    return { findings: [], trace: null };
   }
 }
 
