@@ -93,16 +93,55 @@ export default async function handler(
 
     console.log(`[API] Audit complete for: ${result.identity.normalizedUrl}`);
 
-    // Return successful response
-    // IMPORTANT: Only include public data - never include privateFlags
+    // Transform publicReport to frontend-expected format
+    const publicReport = result.publicReport;
+
+    // Convert priorities and category findings to frontend AuditFinding format
+    const findings = [
+      ...publicReport.priorities.map((p, idx) => ({
+        id: `priority-${idx}`,
+        category: 'seo' as const,
+        title: p.title,
+        description: p.description,
+        impact: p.impact === 'high' ? 'High' : p.impact === 'medium' ? 'Medium' : 'Low',
+        priority: p.rank as 1 | 2 | 3 | 4 | 5,
+        fix: p.description,
+      })),
+      ...Object.values(publicReport.categories).flatMap((cat, catIdx) =>
+        cat.findings.map((f, idx) => ({
+          id: `${cat.name}-${idx}`,
+          category: (cat.name === 'security' ? 'technical' : cat.name === 'crawl' ? 'seo' : cat.name) as 'seo' | 'technical' | 'design' | 'conversion' | 'content',
+          title: f.type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+          description: f.message,
+          impact: f.severity === 'critical' ? 'High' : f.severity === 'warning' ? 'Medium' : 'Low',
+          priority: (catIdx + 1) as 1 | 2 | 3 | 4 | 5,
+          fix: f.message,
+        }))
+      ),
+    ];
+
+    // Return in frontend-expected format
     res.status(200).json({
-      success: true,
-      data: {
-        runId: result.identity.runId,
+      report: {
+        overallScore: publicReport.summary.score,
         url: result.identity.normalizedUrl,
-        publicReport: result.publicReport,
-        coverage: result.coverage,
-        completedAt: result.timings.completedAt,
+        summary: publicReport.summary.overview,
+        designAnalysis: {
+          aestheticScore: publicReport.categories.visual?.score ?? 80,
+          pricePointMatch: 'N/A',
+          critique: publicReport.categories.visual?.summary ?? 'Visual analysis not available',
+        },
+        findings,
+        generatedAt: publicReport.generatedAt,
+      },
+      traces: [],
+      metadata: {
+        totalCost: 0,
+        totalDurationMs: result.timings.completedAt
+          ? new Date(result.timings.completedAt).getTime() - new Date(result.timings.startedAt).getTime()
+          : 0,
+        screenshotCaptured: result.coverage.screenshotsCaptured,
+        pdpAnalyzed: false,
       },
     });
     return;
