@@ -99,9 +99,9 @@ export const TIMEOUT_SERP = 10000;
 export const TIMEOUT_SQUIRRELSCAN = 30000;
 
 /**
- * LLM synthesis timeout - 60 seconds
+ * LLM synthesis timeout - 30 seconds (must fit within Vercel's 60s function limit)
  */
-export const TIMEOUT_LLM_SYNTHESIS = 60000;
+export const TIMEOUT_LLM_SYNTHESIS = 30000;
 
 /**
  * Overall audit timeout - 10 minutes
@@ -113,9 +113,9 @@ export const TIMEOUT_AUDIT_TOTAL = 10 * 60 * 1000;
 // ============================================================================
 
 /**
- * Maximum retries for transient failures
+ * Maximum retries for transient failures (reduced to fit within serverless timeouts)
  */
-export const MAX_RETRIES = 3;
+export const MAX_RETRIES = 2;
 
 /**
  * Base delay between retries (exponential backoff)

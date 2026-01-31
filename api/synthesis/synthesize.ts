@@ -224,14 +224,13 @@ export async function synthesizeReport(
       required: ["executiveSummary", "priorities", "findingsByCategory", "actionPlan", "limitations"],
     };
 
-    // Step 6: Call LLM for synthesis (GPT 5.2 or fallback)
-    console.log("[Synthesis] Calling LLM with 60s timeout...");
+    // Step 6: Call LLM for synthesis (GPT-4o or fallback)
+    console.log(`[Synthesis] Calling LLM with ${TIMEOUT_LLM_SYNTHESIS / 1000}s timeout...`);
     const llmOutput = await llmClient.generateStructured<SynthesisLLMOutput>(
       prompt,
       schema,
       {
         provider: "openai",
-        model: "gpt-5.2",
         timeout: TIMEOUT_LLM_SYNTHESIS,
         temperature: 0.7,
       }
