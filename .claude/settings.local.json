@@ -32,7 +32,11 @@
       "Bash(npx ts-node -e \"import { SYNTHESIS_PROMPT } from ''./api/lib/synthesis/prompts''; console.log\\(''OK, length:'', SYNTHESIS_PROMPT.length\\)\")",
       "Bash(git push:*)",
       "Bash(cd:*)",
-      "Bash(git ls-tree:*)"
+      "Bash(git ls-tree:*)",
+      "Bash(railway logs:*)",
+      "Bash(railway whoami:*)",
+      "Bash(railway list:*)",
+      "Bash(railway status:*)"
     ]
   }
 }
