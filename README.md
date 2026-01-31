@@ -1,20 +1,75 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# Labcast Audit
 
-# Run and deploy your AI Studio app
+A Gemini-powered website auditor for the Labcast marketing agency. Analyzes websites across SEO, performance, security, and visual UX dimensions.
 
-This contains everything you need to run your app locally.
+## Features
 
-View your app in AI Studio: https://ai.studio/apps/drive/1T3mFc17TxJ3DBFpAzbg1h0M9pX0J5bPz
+- **5-Stage Audit Pipeline** - Comprehensive analysis from data collection to AI synthesis
+- **13 Data Collectors** - robots.txt, sitemaps, screenshots, Lighthouse, DNS, TLS, and more
+- **AI-Powered Analysis** - Gemini 2.5 Flash for visual and SERP audits
+- **Executive Reports** - Actionable findings ranked by business impact
+- **Debug Mode** - Full LLM trace visibility for transparency
 
-## Run Locally
+## Quick Start
 
-**Prerequisites:**  Node.js
+```bash
+# Install dependencies
+npm install
 
+# Set environment variables
+cp .env.example .env.local
+# Edit .env.local with your API keys
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+# Run development server
+npm run dev
+```
+
+## Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `GEMINI_API_KEY` | Yes | Google AI Studio API key |
+| `OPENAI_API_KEY` | No | OpenAI API key (optional fallback) |
+| `SCREENSHOTONE_API_KEY` | No | Screenshot capture in production |
+
+## Architecture
+
+```
+POST /api/audit { url: string }
+         │
+         ▼
+┌─────────────────────────────────────────────────┐
+│              5-Stage Pipeline                    │
+├──────────────────────────────────────────────────┤
+│ 0. Identity    → Normalize URL, generate run ID │
+│ 1. Collect     → 13 parallel data collectors    │
+│ 2. Extract     → Signal extraction from HTML    │
+│ 3. Audit       → 4 deterministic + 2 LLM audits │
+│ 4. Synthesize  → AI-generated executive report  │
+└──────────────────────────────────────────────────┘
+```
+
+## Tech Stack
+
+- **Frontend**: React, Vite, TailwindCSS
+- **Backend**: Vercel Serverless Functions
+- **AI**: Google Gemini 2.5 Flash, OpenAI GPT-4o
+- **Screenshots**: ScreenshotOne API
+
+## Development
+
+```bash
+# Build for production
+npm run build
+
+# Type check
+npx tsc --noEmit
+```
+
+## Deployment
+
+Push to `main` branch triggers automatic deployment to Vercel.
+
+## License
+
+Proprietary - Labcast Marketing Agency

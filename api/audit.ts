@@ -21,6 +21,7 @@
 
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { runAuditPipeline } from "./audit.runner.js";
+import { calculateTotalCost } from "../src/lib/pricing.js";
 
 /**
  * Vercel serverless function handler for the audit API.
@@ -120,21 +121,8 @@ export default async function handler(
       ),
     ];
 
-    // Calculate total cost from traces
-    const totalCost = result.traces.reduce((sum, trace) => {
-      const inputTokens = trace.response.usageMetadata?.promptTokenCount || 0;
-      const outputTokens = trace.response.usageMetadata?.candidatesTokenCount || 0;
-      // Use simple pricing approximation
-      const pricing: Record<string, { input: number; output: number }> = {
-        'gemini-2.5-flash': { input: 0.000075, output: 0.0003 },
-        'gemini-2.5-flash-lite': { input: 0.000038, output: 0.00015 },
-        'gemini-2.5-pro': { input: 0.00125, output: 0.005 },
-        'gpt-4o': { input: 0.0025, output: 0.01 },
-        'gpt-4o-mini': { input: 0.00015, output: 0.0006 },
-      };
-      const modelPricing = pricing[trace.model] || { input: 0.00025, output: 0.001 };
-      return sum + (inputTokens / 1000) * modelPricing.input + (outputTokens / 1000) * modelPricing.output;
-    }, 0);
+    // Calculate total cost from traces using shared pricing module
+    const totalCost = calculateTotalCost(result.traces);
 
     // Return in frontend-expected format
     res.status(200).json({

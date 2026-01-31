@@ -1,15 +1,38 @@
 # Labcast Audit - Implementation Summary
 
 ## Overview
-A comprehensive website auditing system with a 5-stage parallel processing pipeline that analyzes websites across multiple dimensions.
+
+A Gemini-powered website auditing system with a 5-stage pipeline that analyzes websites across multiple dimensions (SEO, performance, security, visual UX).
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                        API Endpoint (audit.ts)                       │
+│                    POST /api/audit { url: string }                  │
+└────────────────────────────────┬────────────────────────────────────┘
+                                 │
+                                 ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                    Pipeline Runner (audit.runner.ts)                │
+│                                                                     │
+│  ┌─────────┐   ┌─────────┐   ┌─────────┐   ┌─────────┐   ┌───────┐│
+│  │ Stage 0 │ → │ Stage 1 │ → │ Stage 2 │ → │ Stage 3 │ → │Stage 4││
+│  │Identity │   │ Collect │   │ Extract │   │  Audit  │   │Synth  ││
+│  └─────────┘   └─────────┘   └─────────┘   └─────────┘   └───────┘│
+└─────────────────────────────────────────────────────────────────────┘
+```
 
 ## 5-Stage Pipeline
 
-### Stage 1: Orchestration (`api/audit.ts`)
-Entry point that validates requests, orchestrates the audit flow, and returns structured results.
+### Stage 0: Identity
+- URL normalization
+- Run ID generation
+- Cache key computation
 
-### Stage 2: Collection (`api/collectors/`)
-Parallel data gathering from multiple sources:
+### Stage 1: Collection (`api/collectors/`)
+
+Parallel data gathering from 13 sources:
 
 | Collector | Purpose |
 |-----------|---------|
@@ -21,13 +44,14 @@ Parallel data gathering from multiple sources:
 | `dns.ts` | DNS records and configuration |
 | `tls.ts` | SSL/TLS certificate info |
 | `wellKnown.ts` | .well-known directory files |
-| `screenshots.ts` | Visual captures via Playwright |
+| `screenshots.ts` | Visual captures (ScreenshotOne API) |
 | `lighthouse.ts` | Performance metrics |
 | `serp.ts` | Search engine rankings |
 | `squirrelscan.ts` | Security scan integration |
 | `collectAll.ts` | Orchestrates all collectors |
 
-### Stage 3: Extraction (`api/extractors/`)
+### Stage 2: Extraction (`api/extractors/`)
+
 Signal extraction from collected data:
 
 | Extractor | Purpose |
@@ -43,99 +67,62 @@ Signal extraction from collected data:
 | `urlset.ts` | URL pattern analysis |
 | `extractAll.ts` | Orchestrates all extractors |
 
-### Stage 4: Audit (`api/audits/`)
-Six specialized audit modules:
+### Stage 3: Audits (`api/audits/`)
 
-| Audit | Type | Description |
-|-------|------|-------------|
-| `crawl.audit.ts` | Deterministic | Crawlability analysis |
-| `performance.audit.ts` | Deterministic | Speed metrics evaluation |
-| `security.audit.ts` | Deterministic | Security posture assessment |
-| `technical.audit.ts` | Deterministic | Technical SEO analysis |
-| `serp.audit.ts` | LLM-based | SERP intent evaluation |
-| `visual.audit.ts` | LLM-based | Visual design assessment |
-| `runAudits.ts` | Orchestrator | Runs all audits |
+Six specialized audits (4 deterministic + 2 LLM):
 
-### Stage 5: Synthesis (`api/synthesis/`)
-- `synthesize.ts` - Aggregates all audit results into final structured report
+| Audit | Type | LLM | Description |
+|-------|------|-----|-------------|
+| `crawl.audit.ts` | Deterministic | No | Crawl accessibility |
+| `technical.audit.ts` | Deterministic | No | Technical SEO |
+| `security.audit.ts` | Deterministic | No | Security posture |
+| `performance.audit.ts` | Deterministic | No | Performance metrics |
+| `visual.audit.ts` | LLM | Gemini | UX/Design analysis |
+| `serp.audit.ts` | LLM | Gemini | SERP analysis |
 
-## 3 LLM Calls
+### Stage 4: Synthesis (`api/synthesis/`)
 
-1. **SERP Audit** - Analyzes search result positioning and intent
-2. **Visual Audit** - Evaluates visual design via screenshot analysis
-3. **Final Synthesis** - Combines all audits into actionable insights
+- 3rd LLM call (after visual + SERP)
+- Combines all findings into executive report
+- Generates priorities and recommendations
 
-## Cache Strategy
+## Key Design Principles
 
-**Location**: `api/cache/store.ts`
+1. **Never Throw** - All collectors and audits return `{ data, error }` - pipeline never crashes
+2. **Graceful Degradation** - Missing data doesn't fail the audit
+3. **Bounded Concurrency** - Collectors use concurrency limits
+4. **3 LLM Calls Max** - Visual audit, SERP audit, synthesis
+5. **Private Flags** - Security-sensitive findings kept separate from public report
 
-- **Primary**: In-memory Map for fast access
-- **Secondary**: Upstash Redis for persistence (optional)
-- **TTL**: Configurable per-collector (default: 1 hour)
-- **Keys**: SHA-256 hash of URL + collector type
-- **Fallback**: Graceful degradation to in-memory if Redis unavailable
+## LLM Integration (`api/llm/`)
 
-## Security/Redaction Approach
+| File | Purpose |
+|------|---------|
+| `client.ts` | Unified Gemini + OpenAI client |
+| `prompts.ts` | Prompt templates |
+| `redact.ts` | Sensitive data redaction |
 
-**Location**: `api/llm/redact.ts`
+## Frontend (`src/`)
 
-- Automatic PII detection and masking
-- URL parameter sanitization
-- Cookie/auth header stripping
-- Configurable redaction rules
-- Preserves data structure while protecting sensitive information
+| Directory | Purpose |
+|-----------|---------|
+| `components/` | React UI components |
+| `hooks/` | State management hooks |
+| `services/` | API client |
+| `lib/` | Utilities (pricing, constants, errors) |
 
-## Supporting Infrastructure
+## Configuration
 
-### LLM Client (`api/llm/`)
-- `client.ts` - Unified LLM interface (Gemini/OpenAI)
-- `prompts.ts` - Shared prompt templates
-- `redact.ts` - Data sanitization
+| File | Purpose |
+|------|---------|
+| `api/audit.config.ts` | Timeouts, limits, thresholds |
+| `api/audit.types.ts` | Type definitions |
+| `src/services/defaultConfig.ts` | LLM prompt templates |
+| `src/lib/pricing.ts` | Model pricing (canonical) |
 
-### Utilities
-- `api/audit.types.ts` - TypeScript interfaces
-- `api/audit.config.ts` - Configuration defaults
-- `api/audit.util.ts` - Shared utilities
-- `api/audit.runner.ts` - Execution wrapper
-- `api/collectors/schemaValidate.ts` - Schema validation utilities
+## Deployment
 
-## Environment Variables
-
-```bash
-# Required
-GEMINI_API_KEY=your_gemini_api_key_here
-OPENAI_API_KEY=your_openai_api_key_here
-
-# Optional - SERP API
-SERPAPI_KEY=your_serpapi_key_here
-
-# Optional - Redis caching
-REDIS_URL=redis://localhost:6379
-```
-
-## Dependencies
-
-- `@google/generative-ai` - Gemini API client
-- `openai` - OpenAI API client
-- `lighthouse` - Performance auditing
-- `chrome-launcher` - Chrome automation
-- `playwright-core` - Screenshot capture
-- `@upstash/redis` - Redis caching
-
-## File Count Verification
-
-Total: 41 files
-
-| Directory | Count | Files |
-|-----------|-------|-------|
-| `api/` | 5 | audit.ts, audit.types.ts, audit.config.ts, audit.util.ts, audit.runner.ts |
-| `api/collectors/` | 13 | fetchRoot.ts, robots.ts, sitemap.ts, redirects.ts, htmlSample.ts, dns.ts, tls.ts, wellKnown.ts, screenshots.ts, lighthouse.ts, serp.ts, squirrelscan.ts, collectAll.ts, schemaValidate.ts |
-| `api/extractors/` | 10 | htmlSignals.ts, schema.ts, links.ts, images.ts, perf.ts, securityHeaders.ts, infra.ts, coverage.ts, urlset.ts, extractAll.ts |
-| `api/audits/` | 7 | crawl.audit.ts, performance.audit.ts, security.audit.ts, technical.audit.ts, serp.audit.ts, visual.audit.ts, runAudits.ts |
-| `api/llm/` | 3 | client.ts, prompts.ts, redact.ts |
-| `api/synthesis/` | 1 | synthesize.ts |
-| `api/cache/` | 1 | store.ts |
-
-## Status
-
-✅ **COMPLETE** - System ready for deployment
+- **Platform:** Vercel
+- **Function:** `api/audit.ts` (serverless)
+- **Screenshot API:** ScreenshotOne
+- **Auto-deploy:** Push to main triggers deployment
