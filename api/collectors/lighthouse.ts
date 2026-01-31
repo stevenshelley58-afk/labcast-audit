@@ -49,6 +49,14 @@ interface LighthouseDataWithSummary extends LighthouseData {
 export async function collectLighthouse(
   url: string
 ): Promise<CollectorOutput<LighthouseDataWithSummary>> {
+  // Skip Lighthouse in Vercel serverless environment - Chrome not available
+  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+    return {
+      data: null,
+      error: "Lighthouse skipped: Chrome not available in serverless environment",
+    };
+  }
+
   let lighthouse;
   let chromeLauncher;
 

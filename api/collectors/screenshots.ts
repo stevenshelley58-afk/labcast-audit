@@ -36,8 +36,16 @@ function sanitizeConsoleMessage(msg: string): string {
 export async function collectScreenshots(
   url: string
 ): Promise<CollectorOutput<ScreenshotsData>> {
+  // Skip screenshots in Vercel serverless environment - browsers not available
+  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+    return {
+      data: null,
+      error: "Screenshots skipped: browser not available in serverless environment",
+    };
+  }
+
   let playwright;
-  
+
   try {
     // Dynamically import playwright-core to avoid dependency issues if not installed
     playwright = await import("playwright-core");
@@ -48,9 +56,18 @@ export async function collectScreenshots(
     };
   }
 
-  const browser = await playwright.chromium.launch({
-    headless: true,
-  });
+  let browser;
+  try {
+    browser = await playwright.chromium.launch({
+      headless: true,
+    });
+  } catch (launchError) {
+    const msg = launchError instanceof Error ? launchError.message : String(launchError);
+    return {
+      data: null,
+      error: `Browser launch failed: ${msg.includes("Executable") ? "Browser not installed" : msg}`,
+    };
+  }
 
   try {
     const context = await browser.newContext({
