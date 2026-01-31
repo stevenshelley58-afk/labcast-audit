@@ -11,9 +11,9 @@
  * Records status and headers for each, stores bodySnippet (first 2000 bytes).
  */
 
-import type { CollectorOutput, WellKnownData, WellKnownEndpoint } from "../audit.types.ts";
-import { safeFetch } from "../audit.util.ts";
-import { TIMEOUT_WELL_KNOWN } from "../audit.config.ts";
+import type { CollectorOutput, WellKnownData, WellKnownEndpoint } from "../audit.types.js";
+import { safeFetch } from "../audit.util.js";
+import { TIMEOUT_WELL_KNOWN } from "../audit.config.js";
 
 /**
  * Endpoints to check (paths relative to origin).

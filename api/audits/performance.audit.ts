@@ -7,8 +7,8 @@
  * Never throws, returns empty array if no findings.
  */
 
-import type { SiteSnapshot, AuditFinding, RawSnapshot } from "../audit.types.ts";
-import { PERF_THRESHOLD_GOOD, PERF_THRESHOLD_NEEDS_IMPROVEMENT } from "../audit.config.ts";
+import type { SiteSnapshot, AuditFinding, RawSnapshot } from "../audit.types.js";
+import { PERF_THRESHOLD_GOOD, PERF_THRESHOLD_NEEDS_IMPROVEMENT } from "../audit.config.js";
 
 /**
  * Lighthouse metric thresholds (from CWV spec)

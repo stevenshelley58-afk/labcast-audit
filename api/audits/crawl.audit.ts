@@ -6,9 +6,9 @@
  * Never throws, returns empty array if no findings.
  */
 
-import type { SiteSnapshot, AuditFinding, RawSnapshot } from "../audit.types.ts";
-import { isPresent } from "../audit.util.ts";
-import { MAX_REDIRECT_HOPS } from "../audit.config.ts";
+import type { SiteSnapshot, AuditFinding, RawSnapshot } from "../audit.types.js";
+import { isPresent } from "../audit.util.js";
+import { MAX_REDIRECT_HOPS } from "../audit.config.js";
 
 /**
  * Runs crawl audit on SiteSnapshot.

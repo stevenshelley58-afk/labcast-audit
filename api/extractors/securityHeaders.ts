@@ -11,8 +11,8 @@ import type {
   RedirectMapData, 
   TriState,
   SecurityHeadersMap 
-} from "../audit.types.ts";
-import { createTriState } from "../audit.util.ts";
+} from "../audit.types.js";
+import { createTriState } from "../audit.util.js";
 
 /**
  * Security headers analysis result

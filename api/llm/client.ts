@@ -18,7 +18,7 @@ import {
   TIMEOUT_LLM_SYNTHESIS,
   MAX_RETRIES,
   RETRY_BASE_DELAY,
-} from "../audit.config.ts";
+} from "../audit.config.js";
 
 // ============================================================================
 // TYPES

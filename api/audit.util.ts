@@ -15,12 +15,12 @@ import {
   MAX_BYTES_PER_FETCH,
   TIMEOUT_DEFAULT,
   USER_AGENT,
-} from "./audit.config.ts";
+} from "./audit.config.js";
 import type {
   TriState,
   FetchOptions,
   FetchResult,
-} from "./audit.types.ts";
+} from "./audit.types.js";
 
 // ============================================================================
 // URL NORMALIZATION

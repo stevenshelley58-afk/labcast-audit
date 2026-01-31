@@ -31,22 +31,22 @@ import type {
   CoverageLimitations,
   AuditFinding,
   PrivateFlag,
-} from "./audit.types.ts";
+} from "./audit.types.js";
 import {
   normalizeUrl,
   generateRunId,
   computeCacheKey,
-} from "./audit.util.ts";
+} from "./audit.util.js";
 import {
   TOOL_VERSIONS,
   PROMPT_VERSIONS,
   AUDIT_SYSTEM_VERSION,
-} from "./audit.config.ts";
-import { rawSnapshotCache, siteSnapshotCache } from "./cache/store.ts";
-import { collectAll } from "./collectors/collectAll.ts";
-import { extractAll } from "./extractors/extractAll.ts";
-import { runAllAudits } from "./audits/runAudits.ts";
-import { synthesizeReport } from "./synthesis/synthesize.ts";
+} from "./audit.config.js";
+import { rawSnapshotCache, siteSnapshotCache } from "./cache/store.js";
+import { collectAll } from "./collectors/collectAll.js";
+import { extractAll } from "./extractors/extractAll.js";
+import { runAllAudits } from "./audits/runAudits.js";
+import { synthesizeReport } from "./synthesis/synthesize.js";
 
 // ============================================================================
 // TYPES

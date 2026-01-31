@@ -12,9 +12,9 @@
  * Failure handling: Returns empty array, logs error
  */
 
-import type { RawSnapshot, SiteSnapshot, AuditFinding } from "../audit.types.ts";
-import llmClient from "../llm/client.ts";
-import { getSerpAuditPrompt } from "../llm/prompts.ts";
+import type { RawSnapshot, SiteSnapshot, AuditFinding } from "../audit.types.js";
+import llmClient from "../llm/client.js";
+import { getSerpAuditPrompt } from "../llm/prompts.js";
 
 /**
  * Timeout for SERP audit LLM call (30 seconds)

@@ -18,7 +18,7 @@ import type {
   TlsFactsData,
   SerpRawData,
   SquirrelscanData,
-} from "../audit.types.ts";
+} from "../audit.types.js";
 
 /**
  * Extended coverage info with additional computed fields

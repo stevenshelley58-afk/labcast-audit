@@ -5,8 +5,8 @@
  * Keys: RawSnapshot, SiteSnapshot, PublicReport, PrivateFlags
  */
 
-import type { CacheKeyType, CacheEntry } from "../audit.types.ts";
-import { CACHE_TTL_DEFAULT } from "../audit.config.ts";
+import type { CacheKeyType, CacheEntry } from "../audit.types.js";
+import { CACHE_TTL_DEFAULT } from "../audit.config.js";
 
 /**
  * Generic cache store interface.
@@ -215,13 +215,13 @@ import type {
   SiteSnapshot,
   PublicReport,
   PrivateFlags,
-} from "../audit.types.ts";
+} from "../audit.types.js";
 import {
   CACHE_TTL_RAW_SNAPSHOT,
   CACHE_TTL_SITE_SNAPSHOT,
   CACHE_TTL_PUBLIC_REPORT,
   CACHE_TTL_PRIVATE_FLAGS,
-} from "../audit.config.ts";
+} from "../audit.config.js";
 
 /**
  * Cache for RawSnapshot (Stage 1 collector outputs)

@@ -9,9 +9,9 @@
  * Private flags are stored separately and NEVER exposed to public reports.
  */
 
-import type { SiteSnapshot, AuditFinding, RawSnapshot, PrivateFlag, SecurityHeadersMap } from "../audit.types.ts";
-import { isPresent, isAbsent } from "../audit.util.ts";
-import { SECURITY_HEADERS_CHECKLIST } from "../audit.config.ts";
+import type { SiteSnapshot, AuditFinding, RawSnapshot, PrivateFlag, SecurityHeadersMap } from "../audit.types.js";
+import { isPresent, isAbsent } from "../audit.util.js";
+import { SECURITY_HEADERS_CHECKLIST } from "../audit.config.js";
 
 /**
  * Security audit result with public findings and private flags

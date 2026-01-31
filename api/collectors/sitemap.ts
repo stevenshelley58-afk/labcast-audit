@@ -9,9 +9,9 @@
  * - Caps extracted URLs to MAX_SITEMAP_URLS (50k)
  */
 
-import type { CollectorOutput, SitemapsData } from "../audit.types.ts";
-import { safeFetch } from "../audit.util.ts";
-import { TIMEOUT_SITEMAP, MAX_SITEMAP_URLS } from "../audit.config.ts";
+import type { CollectorOutput, SitemapsData } from "../audit.types.js";
+import { safeFetch } from "../audit.util.js";
+import { TIMEOUT_SITEMAP, MAX_SITEMAP_URLS } from "../audit.config.js";
 
 /**
  * Extracts URLs from a sitemap XML body.

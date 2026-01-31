@@ -6,8 +6,8 @@
  * Returns full JSON report and key metrics summary.
  */
 
-import type { CollectorOutput, LighthouseData } from "../audit.types.ts";
-import { TIMEOUT_LIGHTHOUSE } from "../audit.config.ts";
+import type { CollectorOutput, LighthouseData } from "../audit.types.js";
+import { TIMEOUT_LIGHTHOUSE } from "../audit.config.js";
 
 /**
  * Key Lighthouse metrics for summary.

@@ -9,9 +9,9 @@
  * Max 10 hops each
  */
 
-import type { CollectorOutput, RedirectMapData, RedirectChain } from "../audit.types.ts";
-import { safeFetch } from "../audit.util.ts";
-import { TIMEOUT_DEFAULT, MAX_REDIRECT_HOPS } from "../audit.config.ts";
+import type { CollectorOutput, RedirectMapData, RedirectChain } from "../audit.types.js";
+import { safeFetch } from "../audit.util.js";
+import { TIMEOUT_DEFAULT, MAX_REDIRECT_HOPS } from "../audit.config.js";
 
 /**
  * Fetches a URL and records the full redirect chain.

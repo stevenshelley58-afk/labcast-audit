@@ -10,8 +10,8 @@ import type {
   DnsFactsData, 
   RedirectMapData,
   TriState 
-} from "../audit.types.ts";
-import { createTriState } from "../audit.util.ts";
+} from "../audit.types.js";
+import { createTriState } from "../audit.util.js";
 
 /**
  * Infrastructure analysis result

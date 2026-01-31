@@ -6,10 +6,10 @@
  * Always optional - never fails the audit run.
  */
 
-import type { CollectorOutput, SquirrelscanData } from "../audit.types.ts";
+import type { CollectorOutput, SquirrelscanData } from "../audit.types.js";
 import { exec } from "child_process";
 import { promisify } from "util";
-import { TIMEOUT_SQUIRRELSCAN } from "../audit.config.ts";
+import { TIMEOUT_SQUIRRELSCAN } from "../audit.config.js";
 
 const execAsync = promisify(exec);
 

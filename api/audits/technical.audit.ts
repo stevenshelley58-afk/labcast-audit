@@ -7,13 +7,13 @@
  * Never throws, returns empty array if no findings.
  */
 
-import type { SiteSnapshot, AuditFinding, PageSignals, RawSnapshot } from "../audit.types.ts";
+import type { SiteSnapshot, AuditFinding, PageSignals, RawSnapshot } from "../audit.types.js";
 import { 
   TITLE_LENGTH_MIN, 
   TITLE_LENGTH_MAX, 
   META_DESC_LENGTH_MIN, 
   META_DESC_LENGTH_MAX 
-} from "../audit.config.ts";
+} from "../audit.config.js";
 
 /**
  * Runs technical SEO audit on SiteSnapshot.

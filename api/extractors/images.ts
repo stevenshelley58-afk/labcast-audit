@@ -6,7 +6,7 @@
  * No network calls, no LLM calls, never throws.
  */
 
-import type { HtmlSample } from "../audit.types.ts";
+import type { HtmlSample } from "../audit.types.js";
 
 /**
  * Image data for extraction

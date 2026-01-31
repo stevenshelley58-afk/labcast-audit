@@ -9,13 +9,13 @@
  * LLM audits (visual, SERP): Async, may fail gracefully, 30s timeout each.
  */
 
-import type { SiteSnapshot, AuditFinding, RawSnapshot, PrivateFlag } from "../audit.types.ts";
-import { auditCrawl } from "./crawl.audit.ts";
-import { auditTechnical } from "./technical.audit.ts";
-import { auditSecurity, type SecurityAuditResult } from "./security.audit.ts";
-import { auditPerformance } from "./performance.audit.ts";
-import { runVisualAudit } from "./visual.audit.ts";
-import { runSerpAudit } from "./serp.audit.ts";
+import type { SiteSnapshot, AuditFinding, RawSnapshot, PrivateFlag } from "../audit.types.js";
+import { auditCrawl } from "./crawl.audit.js";
+import { auditTechnical } from "./technical.audit.js";
+import { auditSecurity, type SecurityAuditResult } from "./security.audit.js";
+import { auditPerformance } from "./performance.audit.js";
+import { runVisualAudit } from "./visual.audit.js";
+import { runSerpAudit } from "./serp.audit.js";
 
 /**
  * Result from running deterministic audits only

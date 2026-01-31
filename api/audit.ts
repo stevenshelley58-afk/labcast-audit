@@ -20,7 +20,7 @@
  */
 
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { runAuditPipeline } from "./audit.runner.ts";
+import { runAuditPipeline } from "./audit.runner.js";
 
 /**
  * Vercel serverless function handler for the audit API.

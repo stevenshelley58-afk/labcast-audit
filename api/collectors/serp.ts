@@ -5,8 +5,8 @@
  * Supports SerpApi, DataForSEO, or falls back to error if no API key.
  */
 
-import type { CollectorOutput, SerpRawData } from "../audit.types.ts";
-import { TIMEOUT_SERP } from "../audit.config.ts";
+import type { CollectorOutput, SerpRawData } from "../audit.types.js";
+import { TIMEOUT_SERP } from "../audit.config.js";
 
 /**
  * SERP result item.

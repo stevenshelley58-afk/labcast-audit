@@ -8,9 +8,9 @@
  * - Use concurrency limit (6)
  */
 
-import type { CollectorOutput, HtmlSamplesData, HtmlSample } from "../audit.types.ts";
-import { safeFetch, pLimit } from "../audit.util.ts";
-import { TIMEOUT_HTML_SAMPLE, CONCURRENCY_LIMIT } from "../audit.config.ts";
+import type { CollectorOutput, HtmlSamplesData, HtmlSample } from "../audit.types.js";
+import { safeFetch, pLimit } from "../audit.util.js";
+import { TIMEOUT_HTML_SAMPLE, CONCURRENCY_LIMIT } from "../audit.config.js";
 
 /**
  * Fetches a single HTML sample.

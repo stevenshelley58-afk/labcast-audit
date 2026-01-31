@@ -13,18 +13,18 @@ import type {
   AuditIdentity,
   PageSignals,
   UrlTemplate,
-} from "../audit.types.ts";
+} from "../audit.types.js";
 
 // Import all extractors
-import { extractHtmlSignals } from "./htmlSignals.ts";
-import { extractSchema, type SchemaSummary } from "./schema.ts";
-import { extractLinks, type LinksSummary } from "./links.ts";
-import { extractImages, type ImagesSummary } from "./images.ts";
-import { extractSecurityHeaders, type SecurityHeadersResult } from "./securityHeaders.ts";
-import { extractInfra, type InfraResult } from "./infra.ts";
-import { extractPerf, type PerfResult } from "./perf.ts";
-import { extractCoverage, type CoverageResult, getUnknownRates } from "./coverage.ts";
-import { extractUrlset, type UrlsetResult } from "./urlset.ts";
+import { extractHtmlSignals } from "./htmlSignals.js";
+import { extractSchema, type SchemaSummary } from "./schema.js";
+import { extractLinks, type LinksSummary } from "./links.js";
+import { extractImages, type ImagesSummary } from "./images.js";
+import { extractSecurityHeaders, type SecurityHeadersResult } from "./securityHeaders.js";
+import { extractInfra, type InfraResult } from "./infra.js";
+import { extractPerf, type PerfResult } from "./perf.js";
+import { extractCoverage, type CoverageResult, getUnknownRates } from "./coverage.js";
+import { extractUrlset, type UrlsetResult } from "./urlset.js";
 
 /**
  * Complete extraction result with all intermediate data

@@ -6,8 +6,8 @@
  * Returns TriState values for safe access patterns.
  */
 
-import type { HtmlSample, PageSignals } from "../audit.types.ts";
-import { normalizeUrl } from "../audit.util.ts";
+import type { HtmlSample, PageSignals } from "../audit.types.js";
+import { normalizeUrl } from "../audit.util.js";
 
 /**
  * Extracts page signals from HTML samples.

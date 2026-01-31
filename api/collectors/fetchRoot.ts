@@ -7,9 +7,9 @@
  * - HTML body if content-type is html
  */
 
-import type { CollectorOutput, RootFetchData } from "../audit.types.ts";
-import { safeFetch } from "../audit.util.ts";
-import { TIMEOUT_ROOT_FETCH } from "../audit.config.ts";
+import type { CollectorOutput, RootFetchData } from "../audit.types.js";
+import { safeFetch } from "../audit.util.js";
+import { TIMEOUT_ROOT_FETCH } from "../audit.config.js";
 
 /**
  * Fetches the root URL and captures redirect chain, status, headers, and HTML.

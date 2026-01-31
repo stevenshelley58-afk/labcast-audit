@@ -8,8 +8,8 @@
  * - Captures console error count and top 10 messages
  */
 
-import type { CollectorOutput, ScreenshotsData } from "../audit.types.ts";
-import { TIMEOUT_SCREENSHOT } from "../audit.config.ts";
+import type { CollectorOutput, ScreenshotsData } from "../audit.types.js";
+import { TIMEOUT_SCREENSHOT } from "../audit.config.js";
 
 /**
  * Sanitizes console messages to remove sensitive data.

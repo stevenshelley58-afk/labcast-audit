@@ -7,8 +7,8 @@
  * - Records resolver errors
  */
 
-import type { CollectorOutput, DnsFactsData } from "../audit.types.ts";
-import { TIMEOUT_DNS } from "../audit.config.ts";
+import type { CollectorOutput, DnsFactsData } from "../audit.types.js";
+import { TIMEOUT_DNS } from "../audit.config.js";
 
 /**
  * Performs DNS resolution using Node.js dns module.

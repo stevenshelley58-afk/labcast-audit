@@ -7,7 +7,7 @@
  * 3. Synthesis Prompt (GPT 5.2)
  */
 
-import type { AuditFindings, CoverageLimitations } from "../audit.types";
+import type { AuditFindings, CoverageLimitations } from "../audit.types.js";
 
 /**
  * Visual Audit Prompt for Gemini vision model

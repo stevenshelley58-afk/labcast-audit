@@ -5,7 +5,7 @@
  * No network calls, no LLM calls, never throws.
  */
 
-import type { LighthouseData } from "../audit.types.ts";
+import type { LighthouseData } from "../audit.types.js";
 
 /**
  * Core Web Vitals and performance metrics

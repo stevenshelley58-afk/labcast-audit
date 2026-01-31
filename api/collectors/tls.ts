@@ -10,8 +10,8 @@
  * No cipher scanning, no probing.
  */
 
-import type { CollectorOutput, TlsFactsData } from "../audit.types.ts";
-import { TIMEOUT_TLS } from "../audit.config.ts";
+import type { CollectorOutput, TlsFactsData } from "../audit.types.js";
+import { TIMEOUT_TLS } from "../audit.config.js";
 
 /**
  * Performs TLS connection and extracts certificate information.

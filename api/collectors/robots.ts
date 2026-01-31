@@ -6,9 +6,9 @@
  * - Parses for sitemap references (Sitemap: lines)
  */
 
-import type { CollectorOutput, RobotsTxtData } from "../audit.types.ts";
-import { safeFetch } from "../audit.util.ts";
-import { TIMEOUT_ROBOTS_TXT } from "../audit.config.ts";
+import type { CollectorOutput, RobotsTxtData } from "../audit.types.js";
+import { safeFetch } from "../audit.util.js";
+import { TIMEOUT_ROBOTS_TXT } from "../audit.config.js";
 
 /**
  * Extracts sitemap references from robots.txt body.

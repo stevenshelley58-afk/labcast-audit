@@ -6,7 +6,7 @@
  * No network calls, no LLM calls, never throws.
  */
 
-import type { HtmlSample, PageSignals } from "../audit.types.ts";
+import type { HtmlSample, PageSignals } from "../audit.types.js";
 
 /**
  * Schema extraction result for a page

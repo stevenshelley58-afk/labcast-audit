@@ -28,12 +28,12 @@ import type {
   PriorityItem,
   CategorySummary,
   AuditIdentity,
-} from "../audit.types.ts";
-import type { JSONSchema } from "../llm/client.ts";
-import llmClient from "../llm/client.ts";
-import { getSynthesisPrompt } from "../llm/prompts.ts";
-import { redactSensitiveContent } from "../llm/redact.ts";
-import { TIMEOUT_LLM_SYNTHESIS, AUDIT_SYSTEM_VERSION } from "../audit.config.ts";
+} from "../audit.types.js";
+import type { JSONSchema } from "../llm/client.js";
+import llmClient from "../llm/client.js";
+import { getSynthesisPrompt } from "../llm/prompts.js";
+import { redactSensitiveContent } from "../llm/redact.js";
+import { TIMEOUT_LLM_SYNTHESIS, AUDIT_SYSTEM_VERSION } from "../audit.config.js";
 
 // ============================================================================
 // TYPES

@@ -12,25 +12,25 @@ import type {
   AuditIdentity, 
   UrlSamplingPlanData,
   CollectorOutput,
-} from "../audit.types.ts";
-import { CONCURRENCY_LIMIT } from "../audit.config.ts";
-import { pLimit } from "../audit.util.ts";
+} from "../audit.types.js";
+import { CONCURRENCY_LIMIT } from "../audit.config.js";
+import { pLimit } from "../audit.util.js";
 
 // Import all collectors
-import { collectRootFetch } from "./fetchRoot.ts";
-import { collectRobotsTxt } from "./robots.ts";
-import { collectSitemaps } from "./sitemap.ts";
-import { collectRedirectMap } from "./redirects.ts";
-import { collectHtmlSamples } from "./htmlSample.ts";
-import { collectDnsFacts } from "./dns.ts";
-import { collectTlsFacts } from "./tls.ts";
-import { collectWellKnown } from "./wellKnown.ts";
+import { collectRootFetch } from "./fetchRoot.js";
+import { collectRobotsTxt } from "./robots.js";
+import { collectSitemaps } from "./sitemap.js";
+import { collectRedirectMap } from "./redirects.js";
+import { collectHtmlSamples } from "./htmlSample.js";
+import { collectDnsFacts } from "./dns.js";
+import { collectTlsFacts } from "./tls.js";
+import { collectWellKnown } from "./wellKnown.js";
 
 // Import collectors with external dependencies
-import { collectScreenshots } from "./screenshots.ts";
-import { collectLighthouse } from "./lighthouse.ts";
-import { collectSerp } from "./serp.ts";
-import { collectSquirrelscan } from "./squirrelscan.ts";
+import { collectScreenshots } from "./screenshots.js";
+import { collectLighthouse } from "./lighthouse.js";
+import { collectSerp } from "./serp.js";
+import { collectSquirrelscan } from "./squirrelscan.js";
 
 /**
  * Generates a URL sampling plan based on sitemap URLs.

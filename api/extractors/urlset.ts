@@ -6,7 +6,7 @@
  * No network calls, no LLM calls, never throws.
  */
 
-import type { HtmlSample, SitemapsData } from "../audit.types.ts";
+import type { HtmlSample, SitemapsData } from "../audit.types.js";
 
 /**
  * Detected URL template
