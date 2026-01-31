@@ -39,8 +39,8 @@ export async function collectScreenshots(
   let playwright;
   
   try {
-    // Dynamically import playwright to avoid dependency issues if not installed
-    playwright = await import("playwright");
+    // Dynamically import playwright-core to avoid dependency issues if not installed
+    playwright = await import("playwright-core");
   } catch {
     return {
       data: null,

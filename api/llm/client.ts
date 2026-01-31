@@ -12,7 +12,7 @@
  * - Error handling that returns null on failure, never throws
  */
 
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import OpenAI from "openai";
 import {
   TIMEOUT_LLM_SYNTHESIS,
@@ -65,8 +65,8 @@ export interface LLMClient {
 // ============================================================================
 
 const GEMINI_MODEL_VISION = "gemini-2.0-flash-exp";
-const GEMINI_MODEL_TEXT = "gemini-2.5-flash";
-const OPENAI_MODEL_SYNTHESIS = "gpt-5.2";
+const GEMINI_MODEL_TEXT = "gemini-1.5-flash";
+const OPENAI_MODEL_SYNTHESIS = "gpt-4o";
 
 const DEFAULT_TEMPERATURE = 0.7;
 
@@ -141,12 +141,12 @@ async function withTimeout<T>(
 // ============================================================================
 
 class GeminiProvider {
-  private client: GoogleGenAI | null = null;
+  private client: GoogleGenerativeAI | null = null;
 
   constructor() {
     const apiKey = process.env.GEMINI_API_KEY;
     if (apiKey) {
-      this.client = new GoogleGenAI({ apiKey });
+      this.client = new GoogleGenerativeAI(apiKey);
     }
   }
 
@@ -166,19 +166,18 @@ class GeminiProvider {
     }
 
     return retryWithBackoff(async () => {
+      const genModel = this.client!.getGenerativeModel({
+        model,
+        generationConfig: { temperature }
+      });
+
       const response = await withTimeout(
-        this.client!.models.generateContent({
-          model,
-          contents: prompt,
-          config: {
-            temperature,
-          },
-        }),
+        genModel.generateContent(prompt),
         timeoutMs,
         "Gemini text generation"
       );
 
-      const text = response.text;
+      const text = response.response.text();
       if (!text) {
         throw new Error("Empty response from Gemini");
       }
@@ -226,19 +225,18 @@ class GeminiProvider {
         });
       }
 
+      const genModel = this.client!.getGenerativeModel({
+        model,
+        generationConfig: { temperature }
+      });
+
       const response = await withTimeout(
-        this.client!.models.generateContent({
-          model,
-          contents: parts,
-          config: {
-            temperature,
-          },
-        }),
+        genModel.generateContent(parts),
         timeoutMs,
         "Gemini vision generation"
       );
 
-      const text = response.text;
+      const text = response.response.text();
       if (!text) {
         throw new Error("Empty response from Gemini vision");
       }
@@ -249,7 +247,7 @@ class GeminiProvider {
 
   async generateStructured<T>(
     prompt: string,
-    schema: JSONSchema,
+    _schema: JSONSchema,
     model: string = GEMINI_MODEL_TEXT,
     temperature: number = DEFAULT_TEMPERATURE,
     timeoutMs: number = TIMEOUT_LLM_SYNTHESIS
@@ -260,21 +258,21 @@ class GeminiProvider {
     }
 
     return retryWithBackoff(async () => {
+      const genModel = this.client!.getGenerativeModel({
+        model,
+        generationConfig: {
+          temperature,
+          responseMimeType: "application/json",
+        }
+      });
+
       const response = await withTimeout(
-        this.client!.models.generateContent({
-          model,
-          contents: prompt,
-          config: {
-            temperature,
-            responseMimeType: "application/json",
-            responseSchema: schema as unknown as Record<string, unknown>,
-          },
-        }),
+        genModel.generateContent(prompt),
         timeoutMs,
         "Gemini structured generation"
       );
 
-      const text = response.text;
+      const text = response.response.text();
       if (!text) {
         throw new Error("Empty response from Gemini structured");
       }
