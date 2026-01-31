@@ -1,7 +1,7 @@
 export const MODELS = {
-  DEFAULT: 'gemini-2.0-flash',
-  VISION: 'gemini-2.0-flash',
-  PRO: 'gemini-2.0-pro-exp-02-05',
+  DEFAULT: 'gemini-2.5-flash',
+  VISION: 'gemini-2.5-flash',
+  PRO: 'gemini-2.5-pro',
 } as const;
 
 export const API_ENDPOINTS = {

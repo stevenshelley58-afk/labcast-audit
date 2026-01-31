@@ -126,10 +126,9 @@ export default async function handler(
       const outputTokens = trace.response.usageMetadata?.candidatesTokenCount || 0;
       // Use simple pricing approximation
       const pricing: Record<string, { input: number; output: number }> = {
-        'gemini-2.0-flash-exp': { input: 0.0001, output: 0.0004 },
-        'gemini-2.0-flash': { input: 0.0001, output: 0.0004 },
-        'gemini-2.5-flash': { input: 0.0001, output: 0.0004 },
-        'gemini-1.5-flash': { input: 0.000075, output: 0.0003 },
+        'gemini-2.5-flash': { input: 0.000075, output: 0.0003 },
+        'gemini-2.5-flash-lite': { input: 0.000038, output: 0.00015 },
+        'gemini-2.5-pro': { input: 0.00125, output: 0.005 },
         'gpt-4o': { input: 0.0025, output: 0.01 },
         'gpt-4o-mini': { input: 0.00015, output: 0.0006 },
       };

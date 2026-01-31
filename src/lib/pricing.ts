@@ -7,13 +7,10 @@ export interface ModelPricing {
 }
 
 export const AVAILABLE_MODELS = [
-  // Gemini models
-  'gemini-2.0-flash',
-  'gemini-2.0-flash-exp',
-  'gemini-2.0-pro-exp-02-05',
-  'gemini-1.5-pro',
-  'gemini-1.5-flash',
-  'gemini-3-pro-preview',
+  // Gemini models (current production)
+  'gemini-2.5-flash',
+  'gemini-2.5-pro',
+  'gemini-2.5-flash-lite',
   // OpenAI models
   'gpt-4o',
   'gpt-4o-mini',
@@ -22,34 +19,19 @@ export const AVAILABLE_MODELS = [
 ];
 
 export const MODEL_PRICING: Record<string, ModelPricing> = {
-  // Gemini 2.0 Flash
-  'gemini-2.0-flash': {
-    inputPer1k: 0.0001,
-    outputPer1k: 0.0004,
-  },
-  'gemini-2.0-flash-exp': {
-    inputPer1k: 0.0001,
-    outputPer1k: 0.0004,
-  },
-  // Gemini 2.0 Pro
-  'gemini-2.0-pro-exp-02-05': {
-    inputPer1k: 0.00025,
-    outputPer1k: 0.001,
-  },
-  // Gemini 1.5 Pro
-  'gemini-1.5-pro': {
-    inputPer1k: 0.00125,
-    outputPer1k: 0.005,
-  },
-  // Gemini 1.5 Flash
-  'gemini-1.5-flash': {
+  // Gemini 2.5 Flash (current production)
+  'gemini-2.5-flash': {
     inputPer1k: 0.000075,
     outputPer1k: 0.0003,
   },
-  // Legacy / Preview models - use Pro pricing as fallback
-  'gemini-3-pro-preview': {
-    inputPer1k: 0.00025,
-    outputPer1k: 0.001,
+  'gemini-2.5-flash-lite': {
+    inputPer1k: 0.000038,
+    outputPer1k: 0.00015,
+  },
+  // Gemini 2.5 Pro
+  'gemini-2.5-pro': {
+    inputPer1k: 0.00125,
+    outputPer1k: 0.005,
   },
   // OpenAI pricing (per 1K tokens)
   'gpt-4o': {

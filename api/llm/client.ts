@@ -102,8 +102,8 @@ export interface LLMClient {
 // CONSTANTS
 // ============================================================================
 
-const GEMINI_MODEL_VISION = "gemini-2.0-flash-exp";
-const GEMINI_MODEL_TEXT = "gemini-1.5-flash";
+const GEMINI_MODEL_VISION = "gemini-2.5-flash";
+const GEMINI_MODEL_TEXT = "gemini-2.5-flash";
 const OPENAI_MODEL_SYNTHESIS = "gpt-4o";
 
 const DEFAULT_TEMPERATURE = 0.7;
