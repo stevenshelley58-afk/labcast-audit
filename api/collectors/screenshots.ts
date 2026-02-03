@@ -43,10 +43,11 @@ async function captureWithScreenshotOne(
     viewport_height: viewport.height.toString(),
     device_scale_factor: mobile ? "3" : "1",
     format: "png",
+    full_page: "true", // Capture entire scrolling page, not just viewport
     block_ads: "true",
     block_cookie_banners: "true",
     block_trackers: "true",
-    delay: "2", // Wait 2 seconds for page to render
+    delay: "3", // Wait 3 seconds for page to fully render
     timeout: "60", // Increased timeout to 60s (API max is 90s)
   });
 
@@ -275,9 +276,9 @@ export async function collectScreenshots(
 
     const finalUrl = page.url();
 
-    // Capture desktop screenshot
+    // Capture full-page desktop screenshot (entire scrolling page)
     const desktopBuffer = await page.screenshot({
-      fullPage: false,
+      fullPage: true,
       type: "png",
     });
     const desktop = desktopBuffer.toString("base64");
@@ -300,9 +301,9 @@ export async function collectScreenshots(
       timeout: TIMEOUT_SCREENSHOT,
     });
 
-    // Capture mobile screenshot
+    // Capture full-page mobile screenshot (entire scrolling page)
     const mobileBuffer = await mobilePage.screenshot({
-      fullPage: false,
+      fullPage: true,
       type: "png",
     });
     const mobile = mobileBuffer.toString("base64");
