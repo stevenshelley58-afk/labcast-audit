@@ -124,20 +124,25 @@ export default async function handler(
     // Calculate total cost from traces using shared pricing module
     const totalCost = calculateTotalCost(result.traces);
 
-    // Return in frontend-expected format
-    res.status(200).json({
-      report: {
-        overallScore: publicReport.summary.score,
-        url: result.identity.normalizedUrl,
-        summary: publicReport.summary.overview,
-        designAnalysis: {
-          aestheticScore: publicReport.categories.visual?.score ?? 80,
-          pricePointMatch: 'N/A',
-          critique: publicReport.categories.visual?.summary ?? 'Visual analysis not available',
-        },
-        findings,
-        generatedAt: publicReport.generatedAt,
+    // Build report object
+    const report = {
+      overallScore: publicReport.summary.score,
+      url: result.identity.normalizedUrl,
+      summary: publicReport.summary.overview,
+      designAnalysis: {
+        aestheticScore: publicReport.categories.visual?.score ?? 80,
+        pricePointMatch: 'N/A',
+        critique: publicReport.categories.visual?.summary ?? 'Visual analysis not available',
       },
+      findings,
+      generatedAt: publicReport.generatedAt,
+    };
+
+    // Return in frontend-expected format
+    // Include both `report` and `publicReport` for backward compatibility
+    res.status(200).json({
+      report,
+      publicReport: report,  // Backward-compatible alias
       traces: result.traces,
       metadata: {
         totalCost,

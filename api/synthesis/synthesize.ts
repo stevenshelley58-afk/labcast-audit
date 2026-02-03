@@ -588,18 +588,57 @@ function transformToPublicReport(
 }
 
 /**
- * Build a CategorySummary from LLM output
+ * Keyword mappings for fuzzy category matching.
+ * Used when LLM returns category names that don't exactly match our expected names.
+ */
+const CATEGORY_KEYWORDS: Record<string, string[]> = {
+  crawl: ["crawl", "index", "robot", "sitemap", "access", "indexability"],
+  technical: ["technical", "tech", "seo", "meta", "schema", "structured"],
+  security: ["security", "secure", "ssl", "https", "header", "vulnerability"],
+  performance: ["performance", "speed", "load", "core web", "lighthouse", "vitals"],
+  visual: ["visual", "ux", "design", "ui", "layout", "mobile", "aesthetic", "appearance"],
+  serp: ["serp", "search", "snippet", "ctr", "intent", "ranking", "result"],
+};
+
+/**
+ * Build a CategorySummary from LLM output with robust keyword-based matching.
+ * Falls back to keyword scoring when exact name match fails.
  */
 function buildCategorySummary(
   categoryName: string,
   llmCategories: SynthesisLLMOutput["findingsByCategory"]
 ): CategorySummary {
-  const categoryData = llmCategories.find(
+  // First, try exact match (case-insensitive)
+  let categoryData = llmCategories.find(
     (c) => c.name.toLowerCase() === categoryName.toLowerCase()
   );
 
+  // If no exact match, use keyword-based scoring
   if (!categoryData) {
-    // Return empty category if not found
+    const keywords = CATEGORY_KEYWORDS[categoryName.toLowerCase()] || [categoryName];
+
+    let bestMatch: SynthesisLLMOutput["findingsByCategory"][0] | null = null;
+    let bestScore = 0;
+
+    for (const cat of llmCategories) {
+      const name = cat.name.toLowerCase();
+      const score = keywords.filter(kw => name.includes(kw)).length;
+      if (score > bestScore) {
+        bestScore = score;
+        bestMatch = cat;
+      }
+    }
+
+    if (bestMatch) {
+      console.log(`[Synthesis] Fuzzy matched category "${categoryName}" to LLM category "${bestMatch.name}" (score: ${bestScore})`);
+      categoryData = bestMatch;
+    }
+  }
+
+  if (!categoryData) {
+    // LOG WARNING - don't silently default
+    console.warn(`[Synthesis] No match found for category "${categoryName}". ` +
+      `LLM returned: ${llmCategories.map(c => c.name).join(", ")}`);
     return {
       name: categoryName,
       score: 100,
