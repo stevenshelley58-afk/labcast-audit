@@ -24,7 +24,7 @@ export function LoadingView({ status, url, logs }: LoadingViewProps) {
         <p className="text-gray-500 max-w-lg mx-auto">
           {isCrawling
             ? `Taking high-res snapshot of ${url}`
-            : 'I really hope my code does not crash again'}
+            : 'Running audit analysis...'}
         </p>
       </div>
 
