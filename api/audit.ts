@@ -92,7 +92,7 @@ export default async function handler(
     // The pipeline handles all errors internally and never throws
     console.log(`[API] Starting audit for: ${trimmedUrl}`);
 
-    const VERCEL_TIMEOUT = 55000; // 55 seconds - leave 5s buffer for response
+    const VERCEL_TIMEOUT = 120000; // 2 minutes - let things complete or fail properly
     const startTime = Date.now();
 
     const result = await Promise.race([

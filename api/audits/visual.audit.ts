@@ -54,10 +54,9 @@ export interface VisualAuditResult {
 }
 
 /**
- * Timeout for visual audit LLM call (20 seconds)
- * Must fit within Vercel's 60s limit along with other stages
+ * Timeout for visual audit LLM call (60 seconds)
  */
-const TIMEOUT_VISUAL_AUDIT = 20000;
+const TIMEOUT_VISUAL_AUDIT = 60000;
 
 /**
  * Minimum response length to consider the analysis valid

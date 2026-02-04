@@ -41,10 +41,9 @@ export interface SerpAuditResult {
 }
 
 /**
- * Timeout for SERP audit LLM call (15 seconds)
- * Must fit within Vercel's 60s limit along with other stages
+ * Timeout for SERP audit LLM call (60 seconds)
  */
-const TIMEOUT_SERP_AUDIT = 15000;
+const TIMEOUT_SERP_AUDIT = 60000;
 
 /**
  * Runs SERP audit using LLM text analysis
