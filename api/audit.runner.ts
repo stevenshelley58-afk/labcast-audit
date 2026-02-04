@@ -266,7 +266,7 @@ export async function runAuditPipeline(
 
     // Separate deterministic findings from LLM findings
     // Deterministic: crawl_, tech_, sec_, perf_ prefixes
-    // LLM: visual_, serp_ prefixes
+    // LLM: serp_ prefix (visual is now passed as raw text, not findings)
     const deterministicFindings = allFindings.filter(
       (f) =>
         f.type.startsWith("crawl_") ||
@@ -275,15 +275,17 @@ export async function runAuditPipeline(
         f.type.startsWith("perf_")
     );
     const llmFindings = allFindings.filter(
-      (f) => f.type.startsWith("visual_") || f.type.startsWith("serp_")
+      (f) => f.type.startsWith("serp_")
     );
 
     // Run synthesis (3rd LLM call)
+    // Visual analysis is passed as raw markdown text, not as findings
     const synthesisResult = await synthesizeReport(
       deterministicFindings,
       llmFindings,
       siteSnapshot.coverage,
-      siteSnapshot
+      siteSnapshot,
+      auditsOutput.visualAnalysisText
     );
 
     stageTimers.stage4.end = Date.now();

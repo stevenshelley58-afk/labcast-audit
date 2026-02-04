@@ -20,6 +20,9 @@ import { getVisualAuditPrompt } from "../llm/prompts.js";
  * Result from visual audit including trace data for debugging
  */
 export interface VisualAuditResult {
+  /** Raw markdown analysis text from LLM - passed directly to synthesis */
+  analysisText: string | null;
+  /** Legacy findings array - kept for backward compatibility, always empty */
   findings: AuditFinding[];
   trace: {
     stepId: string;
@@ -52,13 +55,14 @@ const TIMEOUT_VISUAL_AUDIT = 30000;
  *
  * @param rawSnapshot - RawSnapshot containing screenshots
  * @param siteSnapshot - SiteSnapshot containing page signals
- * @returns Visual audit result with findings and trace data
+ * @returns Visual audit result with analysis text (findings array is empty - use analysisText)
  */
 export async function runVisualAudit(
   rawSnapshot: RawSnapshot,
   siteSnapshot: SiteSnapshot
 ): Promise<AuditFinding[]> {
   const result = await runVisualAuditWithTrace(rawSnapshot, siteSnapshot);
+  // Note: findings array is empty - visual analysis is now in analysisText
   return result.findings;
 }
 
@@ -67,7 +71,7 @@ export async function runVisualAudit(
  *
  * @param rawSnapshot - RawSnapshot containing screenshots
  * @param siteSnapshot - SiteSnapshot containing page signals
- * @returns Visual audit result with findings and trace data
+ * @returns Visual audit result with analysis text and trace data
  */
 export async function runVisualAuditWithTrace(
   rawSnapshot: RawSnapshot,
@@ -76,7 +80,7 @@ export async function runVisualAuditWithTrace(
   // Check if screenshots exist
   if (!rawSnapshot.screenshots.data) {
     console.log("Visual audit skipped: no screenshot data available");
-    return { findings: [], trace: null };
+    return { analysisText: null, findings: [], trace: null };
   }
 
   const { desktop, mobile } = rawSnapshot.screenshots.data;
@@ -84,18 +88,12 @@ export async function runVisualAuditWithTrace(
   // Need at least one screenshot to analyze
   if (!desktop && !mobile) {
     console.log("Visual audit skipped: no desktop or mobile screenshots");
-    return { findings: [], trace: null };
+    return { analysisText: null, findings: [], trace: null };
   }
 
-  // Extract page signals for context
-  const rootPage = siteSnapshot.pages[0];
-  const title = rootPage?.title ?? "Unknown";
-  const h1 = rootPage?.h1 ?? "Unknown";
-  const hasCta = rootPage?.h1 !== null; // Simple CTA proxy detection
-
-  // Build prompt with URL and deterministic signals
+  // Build prompt with URL
   const prompt = getVisualAuditPrompt(siteSnapshot.identity.normalizedUrl);
-  const systemInstruction = "You are a UX and design expert analyzing website screenshots for usability issues.";
+  const systemInstruction = "You are a UX and design expert analyzing website screenshots for usability issues. Provide detailed, actionable analysis in markdown format.";
 
   // Collect available images
   const images: string[] = [];
@@ -123,56 +121,14 @@ export async function runVisualAuditWithTrace(
 
     if (!llmResponse) {
       console.error("Visual audit failed: LLM returned null response");
-      return { findings: [], trace: null };
+      return { analysisText: null, findings: [], trace: null };
     }
 
-    // Parse JSON response
-    const parsed = parseVisualAuditResponse(llmResponse.text);
-
-    if (!parsed || !Array.isArray(parsed.findings)) {
-      console.error("Visual audit failed: invalid response format");
-      return {
-        findings: [],
-        trace: {
-          stepId: "visual",
-          stepName: "Visual Analysis",
-          model: llmResponse.model,
-          provider: llmResponse.provider,
-          durationMs: llmResponse.durationMs,
-          prompt,
-          promptTemplate: prompt,
-          systemInstruction,
-          response: llmResponse.text,
-          usageMetadata: llmResponse.usageMetadata,
-          temperature: llmResponse.temperature,
-          hasImage: true,
-          imageSize,
-        }
-      };
-    }
-
-    // Convert to AuditFinding format
-    const findings = parsed.findings.map((finding): AuditFinding => ({
-      type: mapVisualCategoryToFindingType(finding.category),
-      severity: mapVisualSeverity(finding.severity),
-      message: finding.description,
-      evidence: {
-        recommendation: finding.recommendation,
-        category: finding.category,
-        analyzedScreenshots: {
-          desktop: !!desktop,
-          mobile: !!mobile,
-        },
-        pageContext: {
-          title,
-          h1,
-          hasCta,
-        },
-      },
-    }));
-
+    // Return raw markdown text - no JSON parsing needed
+    // The synthesis LLM will consume this directly
     return {
-      findings,
+      analysisText: llmResponse.text,
+      findings: [], // Empty - visual analysis is in analysisText
       trace: {
         stepId: "visual",
         stepName: "Visual Analysis",
@@ -192,80 +148,9 @@ export async function runVisualAuditWithTrace(
 
   } catch (error) {
     console.error("Visual audit error:", error instanceof Error ? error.message : "Unknown error");
-    return { findings: [], trace: null };
+    return { analysisText: null, findings: [], trace: null };
   }
 }
 
-/**
- * Raw finding from LLM visual audit response
- */
-interface RawVisualFinding {
-  category: string;
-  severity: string;
-  description: string;
-  recommendation: string;
-}
-
-/**
- * Parsed response structure from visual audit
- */
-interface VisualAuditResponse {
-  findings: RawVisualFinding[];
-}
-
-/**
- * Parse and validate LLM response
- */
-function parseVisualAuditResponse(response: string): VisualAuditResponse | null {
-  try {
-    // Try to extract JSON if wrapped in markdown
-    const jsonMatch = response.match(/```json\s*([\s\S]*?)```/) || 
-                      response.match(/```\s*([\s\S]*?)```/) ||
-                      [null, response];
-    
-    const jsonStr = jsonMatch[1]?.trim() || response.trim();
-    const parsed = JSON.parse(jsonStr);
-
-    // Validate structure
-    if (!parsed.findings || !Array.isArray(parsed.findings)) {
-      console.error("Visual audit: missing findings array in response");
-      return null;
-    }
-
-    return parsed as VisualAuditResponse;
-  } catch (error) {
-    console.error("Visual audit: failed to parse JSON response:", error);
-    return null;
-  }
-}
-
-/**
- * Map visual category to FindingType
- */
-function mapVisualCategoryToFindingType(category: string): AuditFinding["type"] {
-  const categoryMap: Record<string, AuditFinding["type"]> = {
-    "visual_hierarchy": "visual_mobile_unfriendly",
-    "cta": "visual_viewport_issues",
-    "trust": "visual_text_too_small",
-    "ux_friction": "visual_elements_too_close",
-    "mobile": "visual_mobile_unfriendly",
-  };
-
-  return categoryMap[category.toLowerCase()] || "visual_viewport_issues";
-}
-
-/**
- * Map visual severity to Severity
- */
-function mapVisualSeverity(severity: string): AuditFinding["severity"] {
-  const severityMap: Record<string, AuditFinding["severity"]> = {
-    "critical": "critical",
-    "warning": "warning",
-    "info": "info",
-    "high": "warning",
-    "medium": "warning",
-    "low": "info",
-  };
-
-  return severityMap[severity.toLowerCase()] || "info";
-}
+// JSON parsing removed - visual audit now returns raw markdown text
+// The synthesis LLM consumes the markdown directly

@@ -77,7 +77,7 @@ interface SynthesisInput {
   technicalFindings: AuditFinding[];
   securityFindings: AuditFinding[];
   performanceFindings: AuditFinding[];
-  visualFindings: AuditFinding[];
+  // visualFindings removed - visual analysis is now passed as raw text
   serpFindings: AuditFinding[];
   coverage: CoverageLimitations;
   siteSummary: {
@@ -136,16 +136,18 @@ interface SynthesisLLMOutput {
  * This is LLM call #3 of 3 in the audit pipeline.
  *
  * @param deterministicFindings - Findings from deterministic audits (crawl, technical, security, performance)
- * @param llmFindings - Findings from LLM audits (visual, SERP)
+ * @param llmFindings - Findings from LLM audits (SERP - visual is now passed as text)
  * @param coverage - Coverage limitations and audit metadata
  * @param siteSnapshot - Full site snapshot with all collected data
+ * @param visualAnalysisText - Raw markdown analysis from visual audit LLM (optional)
  * @returns SynthesisResult containing the public report, or null if synthesis fails
  */
 export async function synthesizeReport(
   deterministicFindings: AuditFinding[],
   llmFindings: AuditFinding[],
   coverage: CoverageLimitations,
-  siteSnapshot: SiteSnapshot
+  siteSnapshot: SiteSnapshot,
+  visualAnalysisText?: string | null
 ): Promise<SynthesisResult | null> {
   console.log("[Synthesis] Starting synthesis (LLM call #3 of 3)...");
 
@@ -165,17 +167,25 @@ export async function synthesizeReport(
     );
 
     // Step 3: Build AuditFindings structure for prompt
+    // Note: visual findings array is empty - visual analysis is passed as text
     const findingsForPrompt: AuditFindings = {
       crawl: synthesisInput.crawlFindings,
       technical: synthesisInput.technicalFindings,
       security: synthesisInput.securityFindings,
       performance: synthesisInput.performanceFindings,
-      visual: synthesisInput.visualFindings,
+      visual: [], // Empty - visual analysis is now passed as raw text
       serp: synthesisInput.serpFindings,
     };
 
-    // Step 4: Generate prompt
-    const prompt = getSynthesisPrompt(findingsForPrompt, synthesisInput.coverage);
+    // Step 4: Generate prompt with visual analysis text
+    // Truncate visual analysis if too long to avoid timeout
+    const maxVisualLength = 4000; // ~1000 tokens
+    let truncatedVisualText = visualAnalysisText;
+    if (visualAnalysisText && visualAnalysisText.length > maxVisualLength) {
+      truncatedVisualText = visualAnalysisText.substring(0, maxVisualLength) + "\n\n[Analysis truncated for length]";
+      console.log(`[Synthesis] Truncated visual analysis from ${visualAnalysisText.length} to ${maxVisualLength} chars`);
+    }
+    const prompt = getSynthesisPrompt(findingsForPrompt, synthesisInput.coverage, truncatedVisualText);
 
     // Step 5: Define JSON schema for structured output
     const schema: JSONSchema = {
@@ -435,10 +445,7 @@ function prepareSynthesisInput(
     f.type.startsWith("perf_")
   );
 
-  // Categorize LLM findings
-  const visualFindings = llmFindings.filter((f) =>
-    f.type.startsWith("visual_")
-  );
+  // SERP findings from LLM (visual analysis is passed as raw text, not findings)
   const serpFindings = llmFindings.filter((f) =>
     f.type.startsWith("serp_")
   );
@@ -448,7 +455,6 @@ function prepareSynthesisInput(
     technicalFindings,
     securityFindings,
     performanceFindings,
-    visualFindings,
     serpFindings,
     coverage,
     siteSummary: {

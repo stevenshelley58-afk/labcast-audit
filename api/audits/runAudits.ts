@@ -356,6 +356,8 @@ export interface RunAllAuditsResult {
   findings: AuditFinding[];
   privateFlags: PrivateFlag[];
   traces: AuditTrace[];
+  /** Raw markdown analysis from visual audit - passed directly to synthesis */
+  visualAnalysisText: string | null;
 }
 
 /**
@@ -401,7 +403,8 @@ export async function runAllAudits(
     }),
   ]);
 
-  // Add LLM findings to the collection
+  // Add LLM findings to the collection (SERP still uses findings array)
+  // Note: visualResult.findings is empty - visual analysis is in analysisText
   allFindings.push(...visualResult.findings, ...serpResult.findings);
 
   // Collect traces from LLM audits
@@ -416,5 +419,6 @@ export async function runAllAudits(
     findings: allFindings,
     privateFlags: allPrivateFlags,
     traces: allTraces,
+    visualAnalysisText: visualResult.analysisText,
   };
 }

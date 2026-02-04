@@ -47,8 +47,8 @@ async function captureWithScreenshotOne(
     block_ads: "true",
     block_cookie_banners: "true",
     block_trackers: "true",
-    delay: "3", // Wait 3 seconds for page to fully render
-    timeout: "60", // Increased timeout to 60s (API max is 90s)
+    delay: "2", // Wait 2 seconds for page to render (reduced from 3)
+    timeout: "25", // Reduced to 25s to leave time for other audit stages
   });
 
   if (mobile) {
@@ -57,7 +57,7 @@ async function captureWithScreenshotOne(
 
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 65000); // 65s fetch timeout (slightly longer than API timeout)
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s fetch timeout (slightly longer than API timeout)
 
     const response = await fetch(
       `https://api.screenshotone.com/take?${params.toString()}`,

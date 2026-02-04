@@ -12,29 +12,32 @@ import type { AuditFindings, CoverageLimitations } from "../audit.types.js";
 /**
  * Visual Audit Prompt for Gemini vision model
  * Analyzes website screenshots for UX and design issues
+ * Returns structured markdown that maps to synthesis JSON format
  */
 export function getVisualAuditPrompt(url: string): string {
-  return `Analyze the website screenshots (desktop and mobile) for ${url} and provide structured findings on:
+  return `Analyze the website screenshots (desktop and mobile) for ${url}.
 
-1. Visual hierarchy clarity - Is the most important content prominent? Is there clear visual flow?
-2. CTA placement and prominence - Are calls-to-action visible and well-positioned?
-3. Trust and credibility signals - Are there trust indicators (testimonials, security badges, contact info)?
-4. UX friction points - Confusing elements, hard-to-read text, cluttered layout
-5. Mobile-specific issues - Touch targets too small, horizontal scroll, mobile usability problems
+Evaluate: visual hierarchy, CTA placement, trust signals, UX friction, and mobile usability.
 
-Provide specific, actionable observations. Focus on issues that impact conversion and user experience.
+Output in this exact format (~200 words total):
 
-Return ONLY valid JSON in this exact format:
-{
-  "findings": [
-    {
-      "category": "visual_hierarchy" | "cta" | "trust" | "ux_friction" | "mobile",
-      "severity": "critical" | "warning" | "info",
-      "description": "Detailed description of the issue observed",
-      "recommendation": "Specific action to fix the issue"
-    }
-  ]
-}`;
+**Critical Issues:**
+- [Issue name]: [Brief description and recommendation]
+(List issues that seriously hurt conversions or usability. Leave blank if none.)
+
+**Warnings:**
+- [Issue name]: [Brief description and recommendation]
+(List moderate issues worth fixing. Leave blank if none.)
+
+**Minor/Info:**
+- [Observation]: [Brief note]
+(List minor observations or positive notes. Leave blank if none.)
+
+**Summary:** [1-2 sentence overall UX assessment]
+
+**Score:** [0-100, where 100 is excellent UX with no issues]
+
+Be specific and actionable. Every issue must include what's wrong and how to fix it. Do NOT return JSON.`;
 }
 
 /**
@@ -84,17 +87,21 @@ Return ONLY valid JSON in this exact format:
 /**
  * Synthesis Prompt for GPT 5.2
  * Synthesizes all audit findings into a comprehensive report
+ *
+ * @param findings - Structured findings from deterministic audits
+ * @param coverage - Coverage limitations
+ * @param visualAnalysisText - Raw markdown from visual audit LLM (optional)
  */
 export function getSynthesisPrompt(
   findings: AuditFindings,
-  coverage: CoverageLimitations
+  coverage: CoverageLimitations,
+  visualAnalysisText?: string | null
 ): string {
   // Count findings by category for context
   const crawlCount = findings.crawl.length;
   const technicalCount = findings.technical.length;
   const securityCount = findings.security.length;
   const performanceCount = findings.performance.length;
-  const visualCount = findings.visual.length;
   const serpCount = findings.serp.length;
 
   // Format findings for the prompt (without private flags)
@@ -103,6 +110,11 @@ export function getSynthesisPrompt(
       .map((f) => `- [${f.severity.toUpperCase()}] ${f.type}: ${f.message}`)
       .join("\n") || "No findings in this category";
   };
+
+  // Visual analysis section - use raw text if available, otherwise note it's missing
+  const visualSection = visualAnalysisText
+    ? visualAnalysisText
+    : "No visual analysis available (screenshots may not have been captured)";
 
   return `Synthesize these audit findings into a comprehensive, client-ready report.
 
@@ -120,10 +132,10 @@ ${formatFindings(findings.security)}
 ### Performance Issues (${performanceCount}):
 ${formatFindings(findings.performance)}
 
-## LLM-GENERATED FINDINGS:
+## LLM-GENERATED ANALYSIS:
 
-### Visual/UX Analysis (${visualCount}):
-${formatFindings(findings.visual)}
+### Visual/UX Analysis:
+${visualSection}
 
 ### SERP/Search Analysis (${serpCount}):
 ${formatFindings(findings.serp)}
