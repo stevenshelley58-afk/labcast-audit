@@ -88,10 +88,21 @@ export default async function handler(
   }
 
   try {
-    // Run the audit pipeline
+    // Run the audit pipeline with a 55s timeout (Vercel has 60s limit)
     // The pipeline handles all errors internally and never throws
     console.log(`[API] Starting audit for: ${trimmedUrl}`);
-    const result = await runAuditPipeline({ url: trimmedUrl, pdpUrl: pdpUrl?.trim() });
+
+    const VERCEL_TIMEOUT = 55000; // 55 seconds - leave 5s buffer for response
+    const startTime = Date.now();
+
+    const result = await Promise.race([
+      runAuditPipeline({ url: trimmedUrl, pdpUrl: pdpUrl?.trim() }),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error(`Audit timeout: exceeded ${VERCEL_TIMEOUT}ms`)), VERCEL_TIMEOUT)
+      ),
+    ]);
+
+    console.log(`[API] Audit completed in ${Date.now() - startTime}ms`);
 
     console.log(`[API] Audit complete for: ${result.identity.normalizedUrl}`);
 

@@ -207,7 +207,7 @@ export async function runAuditPipeline(
     stageTimers.stage1.end = Date.now();
     stageTimers.stage1.duration = stageTimers.stage1.end - stageTimers.stage1.start;
 
-    console.log(`[AuditRunner] Stage 1 complete: 13 collectors finished`);
+    console.log(`[AuditRunner] Stage 1 complete: 13 collectors finished (${stageTimers.stage1.duration}ms)`);
 
     // ========================================================================
     // STAGE 2: Extract (all extractors)
@@ -256,7 +256,7 @@ export async function runAuditPipeline(
     stageTimers.stage3.end = Date.now();
     stageTimers.stage3.duration = stageTimers.stage3.end - stageTimers.stage3.start;
 
-    console.log(`[AuditRunner] Stage 3 complete: ${allFindings.length} findings (${privateFlagsFromAudits.length} private flags, ${auditTraces.length} traces)`);
+    console.log(`[AuditRunner] Stage 3 complete: ${allFindings.length} findings in ${stageTimers.stage3.duration}ms (${auditTraces.length} LLM traces)`);
 
     // ========================================================================
     // STAGE 4: Synthesis (3rd LLM call)
@@ -289,6 +289,8 @@ export async function runAuditPipeline(
 
     stageTimers.stage4.end = Date.now();
     stageTimers.stage4.duration = stageTimers.stage4.end - stageTimers.stage4.start;
+
+    console.log(`[AuditRunner] Stage 4 complete: synthesis in ${stageTimers.stage4.duration}ms`);
 
     // ========================================================================
     // STAGE 5: Output
