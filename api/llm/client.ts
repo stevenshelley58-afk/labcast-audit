@@ -180,15 +180,23 @@ async function withTimeout<T>(
 
 class GeminiProvider {
   private client: GoogleGenerativeAI | null = null;
+  private initialized = false;
 
-  constructor() {
+  private ensureInitialized(): void {
+    if (this.initialized) return;
+    this.initialized = true;
+
     const apiKey = process.env.GEMINI_API_KEY;
     if (apiKey) {
       this.client = new GoogleGenerativeAI(apiKey);
+      console.log("[Gemini] Client initialized successfully");
+    } else {
+      console.warn("[Gemini] GEMINI_API_KEY not set - visual audit will be skipped");
     }
   }
 
   isAvailable(): boolean {
+    this.ensureInitialized();
     return this.client !== null;
   }
 
@@ -208,6 +216,7 @@ class GeminiProvider {
     temperature: number = DEFAULT_TEMPERATURE,
     timeoutMs: number = TIMEOUT_LLM_SYNTHESIS
   ): Promise<LLMResponse | null> {
+    this.ensureInitialized();
     if (!this.client) {
       console.error("Gemini client not initialized - missing GEMINI_API_KEY");
       return null;
@@ -267,6 +276,7 @@ class GeminiProvider {
     temperature: number = DEFAULT_TEMPERATURE,
     timeoutMs: number = TIMEOUT_LLM_SYNTHESIS
   ): Promise<LLMResponse | null> {
+    this.ensureInitialized();
     if (!this.client) {
       console.error("Gemini client not initialized - missing GEMINI_API_KEY");
       return null;
@@ -352,6 +362,7 @@ class GeminiProvider {
     temperature: number = DEFAULT_TEMPERATURE,
     timeoutMs: number = TIMEOUT_LLM_SYNTHESIS
   ): Promise<{ data: T; metadata: LLMResponse } | null> {
+    this.ensureInitialized();
     if (!this.client) {
       console.error("Gemini client not initialized - missing GEMINI_API_KEY");
       return null;
@@ -411,15 +422,23 @@ class GeminiProvider {
 
 class OpenAIProvider {
   private client: OpenAI | null = null;
+  private initialized = false;
 
-  constructor() {
+  private ensureInitialized(): void {
+    if (this.initialized) return;
+    this.initialized = true;
+
     const apiKey = process.env.OPENAI_API_KEY;
     if (apiKey) {
       this.client = new OpenAI({ apiKey });
+      console.log("[OpenAI] Client initialized successfully");
+    } else {
+      console.warn("[OpenAI] OPENAI_API_KEY not set - synthesis will fall back to Gemini");
     }
   }
 
   isAvailable(): boolean {
+    this.ensureInitialized();
     return this.client !== null;
   }
 
@@ -439,6 +458,7 @@ class OpenAIProvider {
     temperature: number = DEFAULT_TEMPERATURE,
     timeoutMs: number = TIMEOUT_LLM_SYNTHESIS
   ): Promise<LLMResponse | null> {
+    this.ensureInitialized();
     if (!this.client) {
       console.error("OpenAI client not initialized - missing OPENAI_API_KEY");
       return null;
@@ -495,6 +515,7 @@ class OpenAIProvider {
     temperature: number = DEFAULT_TEMPERATURE,
     timeoutMs: number = TIMEOUT_LLM_SYNTHESIS
   ): Promise<LLMResponse | null> {
+    this.ensureInitialized();
     if (!this.client) {
       console.error("OpenAI client not initialized - missing OPENAI_API_KEY");
       return null;
@@ -569,6 +590,7 @@ class OpenAIProvider {
     temperature: number = DEFAULT_TEMPERATURE,
     timeoutMs: number = TIMEOUT_LLM_SYNTHESIS
   ): Promise<{ data: T; metadata: LLMResponse } | null> {
+    this.ensureInitialized();
     if (!this.client) {
       console.error("OpenAI client not initialized - missing OPENAI_API_KEY");
       return null;
