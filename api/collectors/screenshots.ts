@@ -19,7 +19,7 @@ import { TIMEOUT_SCREENSHOT } from "../audit.config.js";
  */
 export interface ScreenshotRequest {
   homepageUrl: string;
-  pdpUrl: string;
+  pdpUrl?: string;  // Optional - falls back to homepageUrl if not provided
 }
 
 /**
@@ -203,7 +203,9 @@ async function capturePageScreenshots(
 export async function collectScreenshots(
   request: ScreenshotRequest
 ): Promise<CollectorOutput<ScreenshotsData>> {
-  const { homepageUrl, pdpUrl } = request;
+  const { homepageUrl } = request;
+  // Use homepage as PDP fallback if not provided
+  const pdpUrl = request.pdpUrl || homepageUrl;
 
   // In serverless environment, use ScreenshotOne API
   if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {

@@ -66,16 +66,6 @@ export default async function handler(
     return;
   }
 
-  // Validate PDP URL presence
-  if (!pdpUrl || typeof pdpUrl !== "string") {
-    res.status(400).json({
-      error: "PDP URL required",
-      code: "PDP_URL_REQUIRED",
-      message: "A product detail page URL must be provided. No guessing or heuristics allowed.",
-    });
-    return;
-  }
-
   // Validate URL format (basic check)
   const trimmedUrl = url.trim();
   if (trimmedUrl.length === 0) {
@@ -101,7 +91,7 @@ export default async function handler(
     // Run the audit pipeline
     // The pipeline handles all errors internally and never throws
     console.log(`[API] Starting audit for: ${trimmedUrl}`);
-    const result = await runAuditPipeline({ url: trimmedUrl, pdpUrl: pdpUrl.trim() });
+    const result = await runAuditPipeline({ url: trimmedUrl, pdpUrl: pdpUrl?.trim() });
 
     console.log(`[API] Audit complete for: ${result.identity.normalizedUrl}`);
 
