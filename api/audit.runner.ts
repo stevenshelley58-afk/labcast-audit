@@ -10,8 +10,6 @@
  * Stage 5: Output
  *
  * Critical Requirements:
- * - Any URL returns a report, even if blocked
- * - No unhandled exceptions
  * - Same snapshot produces identical deterministic findings
  * - Exactly 3 LLM calls per run (visual, SERP, synthesis)
  * - Public report never contains exploit-enabling details
@@ -19,6 +17,7 @@
  * - Coverage and limitations always present
  * - Lighthouse failures do not fail the run
  * - squirrelscan not installed does not fail the run
+ * - Pipeline failures throw explicit errors (no silent degradation)
  */
 
 import type {
@@ -145,7 +144,7 @@ interface StageTimer {
  * @param request - The audit request containing the URL to audit
  * @param options - Optional settings (skipCache)
  * @returns Complete audit result with public report and private flags
- * @throws Never throws - all errors are caught and converted to findings
+ * @throws Error if any required pipeline stage fails
  */
 export async function runAuditPipeline(
   request: AuditRequest,
@@ -196,12 +195,12 @@ export async function runAuditPipeline(
         rawSnapshot = cachedRaw;
       } else {
         console.log("[AuditRunner] RawSnapshot cache miss - collecting...");
-        rawSnapshot = await collectAll(identity);
+        rawSnapshot = await collectAll(identity, request.pdpUrl);
         rawSnapshotCache.set(cacheKey, rawSnapshot);
       }
     } else {
       console.log("[AuditRunner] Cache skipped - collecting fresh...");
-      rawSnapshot = await collectAll(identity);
+      rawSnapshot = await collectAll(identity, request.pdpUrl);
       rawSnapshotCache.set(cacheKey, rawSnapshot);
     }
 
@@ -369,19 +368,11 @@ export async function runAuditPipeline(
       });
     }
 
-    // Build public report (synthesis may fail, have fallback)
-    let publicReport: PublicReport;
-
-    if (synthesisResult) {
-      publicReport = synthesisResult.publicReport;
-    } else {
-      // Fallback: build minimal public report if synthesis failed
-      publicReport = createFallbackPublicReport(
-        identity,
-        siteSnapshot.coverage,
-        allFindings
-      );
+    // Build public report - synthesis is required
+    if (!synthesisResult) {
+      throw new Error("Synthesis failed: unable to generate report");
     }
+    const publicReport: PublicReport = synthesisResult.publicReport;
 
     // Build private flags (combining audit flags + any synthesis issues)
     const privateFlags: PrivateFlags = {
@@ -415,117 +406,15 @@ export async function runAuditPipeline(
 
     return auditResult;
   } catch (error) {
-    // Catch-all: this should never happen, but if it does,
-    // return a graceful error report instead of throwing
-    console.error("[AuditRunner] Unexpected pipeline error:", error);
-
-    return createErrorAuditResult(
-      request.url,
-      error instanceof Error ? error.message : "Unknown error"
-    );
+    // Propagate errors up - no silent degradation
+    console.error("[AuditRunner] Pipeline error:", error);
+    throw error;
   }
 }
 
 // ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
-
-/**
- * Creates a fallback public report when synthesis fails.
- * Ensures we always return a valid report even if LLM synthesis fails.
- */
-function createFallbackPublicReport(
-  identity: AuditIdentity,
-  coverage: CoverageLimitations,
-  findings: AuditFinding[]
-): PublicReport {
-  // Calculate basic score based on findings
-  const criticalCount = findings.filter((f) => f.severity === "critical").length;
-  const warningCount = findings.filter((f) => f.severity === "warning").length;
-
-  // Simple scoring: start at 100, deduct for issues
-  let score = 100;
-  score -= criticalCount * 15;
-  score -= warningCount * 5;
-  score = Math.max(0, Math.min(100, score));
-
-  // Determine grade
-  let grade: "A" | "B" | "C" | "D" | "F";
-  if (score >= 90) grade = "A";
-  else if (score >= 80) grade = "B";
-  else if (score >= 70) grade = "C";
-  else if (score >= 60) grade = "D";
-  else grade = "F";
-
-  return {
-    identity,
-    summary: {
-      score,
-      grade,
-      headline: "SEO Audit Report",
-      overview: `Audit completed with ${findings.length} findings. Note: Report synthesis encountered an issue, displaying raw findings.`,
-      keyStrengths: ["Audit completed successfully"],
-      keyIssues: findings
-        .filter((f) => f.severity === "critical" || f.severity === "warning")
-        .slice(0, 5)
-        .map((f) => f.message),
-      urgency: criticalCount > 0 ? "immediate" : warningCount > 5 ? "high" : "medium",
-    },
-    priorities: findings
-      .filter((f) => f.severity === "critical" || f.severity === "warning")
-      .slice(0, 10)
-      .map((f, i) => ({
-        rank: i + 1,
-        title: f.type,
-        description: f.message,
-        impact: f.severity === "critical" ? "high" : "medium",
-        effort: "medium",
-      })),
-    categories: {
-      crawl: createFallbackCategory("crawl", findings),
-      technical: createFallbackCategory("technical", findings),
-      security: createFallbackCategory("security", findings),
-      performance: createFallbackCategory("performance", findings),
-      visual: createFallbackCategory("visual", findings),
-      serp: createFallbackCategory("serp", findings),
-    },
-    limitations: coverage,
-    generatedAt: new Date().toISOString(),
-    version: AUDIT_SYSTEM_VERSION,
-  };
-}
-
-/**
- * Creates a fallback category summary from findings.
- */
-function createFallbackCategory(
-  categoryName: string,
-  findings: AuditFinding[]
-): {
-  name: string;
-  score: number;
-  findings: AuditFinding[];
-  summary: string;
-} {
-  const categoryFindings = findings.filter((f) =>
-    f.type.startsWith(categoryName === "serp" ? "serp_" : `${categoryName}_`)
-  );
-
-  const criticalCount = categoryFindings.filter((f) => f.severity === "critical").length;
-  const warningCount = categoryFindings.filter((f) => f.severity === "warning").length;
-
-  let score = 100;
-  score -= criticalCount * 20;
-  score -= warningCount * 10;
-  score = Math.max(0, Math.min(100, score));
-
-  return {
-    name: categoryName,
-    score,
-    findings: categoryFindings,
-    summary: `${categoryFindings.length} findings in ${categoryName} category.`,
-  };
-}
 
 /**
  * Assesses the quality of raw collector data.
@@ -600,143 +489,4 @@ function generateReviewerNotes(
   }
 
   return notes;
-}
-
-/**
- * Creates an error audit result when the pipeline fails completely.
- * This ensures we never throw and always return a valid result.
- */
-function createErrorAuditResult(url: string, errorMessage: string): AuditResult {
-  const runId = generateRunId();
-  const normalizedUrl = normalizeUrl(url);
-
-  return {
-    identity: {
-      normalizedUrl,
-      runId,
-      cacheKey: "error",
-    },
-    traces: [],
-    publicReport: {
-      identity: {
-        normalizedUrl,
-        runId,
-        cacheKey: "error",
-      },
-      summary: {
-        score: 0,
-        grade: "F",
-        headline: "Audit Failed",
-        overview: `The audit could not be completed due to an error: ${errorMessage}`,
-        keyStrengths: [],
-        keyIssues: ["Audit failed to complete"],
-        urgency: "immediate",
-      },
-      priorities: [
-        {
-          rank: 1,
-          title: "Retry Audit",
-          description: "The audit encountered an error. Please try again.",
-          impact: "high",
-          effort: "low",
-        },
-      ],
-      categories: {
-        crawl: {
-          name: "crawl",
-          score: 0,
-          findings: [],
-          summary: "Audit failed - no crawl data available.",
-        },
-        technical: {
-          name: "technical",
-          score: 0,
-          findings: [],
-          summary: "Audit failed - no technical data available.",
-        },
-        security: {
-          name: "security",
-          score: 0,
-          findings: [],
-          summary: "Audit failed - no security data available.",
-        },
-        performance: {
-          name: "performance",
-          score: 0,
-          findings: [],
-          summary: "Audit failed - no performance data available.",
-        },
-        visual: {
-          name: "visual",
-          score: 0,
-          findings: [],
-          summary: "Audit failed - no visual data available.",
-        },
-        serp: {
-          name: "serp",
-          score: 0,
-          findings: [],
-          summary: "Audit failed - no SERP data available.",
-        },
-      },
-      limitations: {
-        pagesSampled: 0,
-        pagesTotal: 0,
-        sitemapsProcessed: 0,
-        sitemapsFailed: 0,
-        dnsResolved: false,
-        tlsVerified: false,
-        lighthouseRun: false,
-        screenshotsCaptured: false,
-        serpChecked: false,
-        squirrelscanRun: false,
-        blockedByRobots: [],
-        fetchErrors: [{ url: normalizedUrl, error: errorMessage }],
-        timeoutUrls: [],
-        oversizedUrls: [],
-      },
-      generatedAt: new Date().toISOString(),
-      version: AUDIT_SYSTEM_VERSION,
-    },
-    privateFlags: {
-      flags: [
-        {
-          type: "tool_failure",
-          severity: "high",
-          message: "Pipeline failure",
-          context: { error: errorMessage },
-        },
-      ],
-      rawDataQuality: "low",
-      confidenceScore: 0,
-      reviewerNotes: ["Complete pipeline failure - manual review required"],
-    },
-    coverage: {
-      pagesSampled: 0,
-      pagesTotal: 0,
-      sitemapsProcessed: 0,
-      sitemapsFailed: 0,
-      dnsResolved: false,
-      tlsVerified: false,
-      lighthouseRun: false,
-      screenshotsCaptured: false,
-      serpChecked: false,
-      squirrelscanRun: false,
-      blockedByRobots: [],
-      fetchErrors: [{ url: normalizedUrl, error: errorMessage }],
-      timeoutUrls: [],
-      oversizedUrls: [],
-    },
-    timings: {
-      startedAt: new Date().toISOString(),
-      completedAt: new Date().toISOString(),
-      stageDurations: {
-        stage0: 0,
-        stage1: 0,
-        stage2: 0,
-        stage3: 0,
-        stage4: 0,
-      },
-    },
-  };
 }

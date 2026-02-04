@@ -664,57 +664,45 @@ class UnifiedLLMClient implements LLMClient {
   }
 
   /**
-   * Generate text with full metadata for tracing
+   * Generate text with full metadata for tracing.
+   * NO FALLBACKS - uses specified provider only, fails explicitly if unavailable.
    */
   async generateTextWithMetadata(
     prompt: string,
     options: LLMOptions = {}
   ): Promise<LLMResponse | null> {
     const {
-      provider,
+      provider = "openai", // Default to OpenAI for synthesis
       model,
       timeout = TIMEOUT_LLM_SYNTHESIS,
       temperature = DEFAULT_TEMPERATURE,
     } = options;
 
-    try {
-      // Use specified provider or default to OpenAI for synthesis
-      if (provider === "gemini") {
-        return await this.gemini.generateTextWithMetadata(
-          prompt,
-          model || GEMINI_MODEL_TEXT,
-          temperature,
-          timeout
-        );
+    // NO FALLBACKS - use specified provider only
+    if (provider === "gemini") {
+      if (!this.gemini.isAvailable()) {
+        console.error("[LLM] Gemini requested but GEMINI_API_KEY not set");
+        return null;
       }
+      return await this.gemini.generateTextWithMetadata(
+        prompt,
+        model || GEMINI_MODEL_TEXT,
+        temperature,
+        timeout
+      );
+    }
 
-      // Default: OpenAI for synthesis
-      if (this.openai.isAvailable()) {
-        const result = await this.openai.generateTextWithMetadata(
-          prompt,
-          model || OPENAI_MODEL_SYNTHESIS,
-          temperature,
-          timeout
-        );
-        if (result !== null) return result;
-      }
-
-      // Fallback to Gemini if OpenAI fails or unavailable
-      if (this.gemini.isAvailable()) {
-        return await this.gemini.generateTextWithMetadata(
-          prompt,
-          model || GEMINI_MODEL_TEXT,
-          temperature,
-          timeout
-        );
-      }
-
-      console.error("No LLM provider available");
-      return null;
-    } catch (error) {
-      console.error("generateTextWithMetadata failed:", error);
+    // OpenAI (default for synthesis)
+    if (!this.openai.isAvailable()) {
+      console.error("[LLM] OpenAI requested but OPENAI_API_KEY not set");
       return null;
     }
+    return await this.openai.generateTextWithMetadata(
+      prompt,
+      model || OPENAI_MODEL_SYNTHESIS,
+      temperature,
+      timeout
+    );
   }
 
   /**
@@ -730,7 +718,8 @@ class UnifiedLLMClient implements LLMClient {
   }
 
   /**
-   * Generate with vision with full metadata for tracing
+   * Generate with vision with full metadata for tracing.
+   * NO FALLBACKS - uses specified provider only, fails explicitly if unavailable.
    */
   async generateWithVisionAndMetadata(
     prompt: string,
@@ -738,53 +727,39 @@ class UnifiedLLMClient implements LLMClient {
     options: LLMOptions = {}
   ): Promise<LLMResponse | null> {
     const {
-      provider,
+      provider = "gemini", // Default to Gemini for vision
       model,
       timeout = TIMEOUT_LLM_SYNTHESIS,
       temperature = DEFAULT_TEMPERATURE,
     } = options;
 
-    try {
-      // Use specified provider or default to Gemini for vision
-      if (provider === "openai") {
-        return await this.openai.generateWithVisionAndMetadata(
-          prompt,
-          images,
-          model || OPENAI_MODEL_SYNTHESIS,
-          temperature,
-          timeout
-        );
+    // NO FALLBACKS - use specified provider only
+    if (provider === "openai") {
+      if (!this.openai.isAvailable()) {
+        console.error("[LLM] OpenAI vision requested but OPENAI_API_KEY not set");
+        return null;
       }
+      return await this.openai.generateWithVisionAndMetadata(
+        prompt,
+        images,
+        model || OPENAI_MODEL_SYNTHESIS,
+        temperature,
+        timeout
+      );
+    }
 
-      // Default: Gemini for vision
-      if (this.gemini.isAvailable()) {
-        const result = await this.gemini.generateWithVisionAndMetadata(
-          prompt,
-          images,
-          model || GEMINI_MODEL_VISION,
-          temperature,
-          timeout
-        );
-        if (result !== null) return result;
-      }
-
-      // Fallback to OpenAI if Gemini fails or unavailable
-      if (this.openai.isAvailable()) {
-        return await this.openai.generateWithVisionAndMetadata(
-          prompt,
-          images,
-          model || OPENAI_MODEL_SYNTHESIS,
-          temperature,
-          timeout
-        );
-      }
-
-      console.error("No LLM provider available for vision");
-      return null;
-    } catch (error) {
-      console.error("generateWithVisionAndMetadata failed:", error);
+    // Gemini (default for vision)
+    if (!this.gemini.isAvailable()) {
+      console.error("[LLM] Gemini vision requested but GEMINI_API_KEY not set");
       return null;
     }
+    return await this.gemini.generateWithVisionAndMetadata(
+      prompt,
+      images,
+      model || GEMINI_MODEL_VISION,
+      temperature,
+      timeout
+    );
   }
 
   /**
@@ -800,7 +775,8 @@ class UnifiedLLMClient implements LLMClient {
   }
 
   /**
-   * Generate structured output with full metadata for tracing
+   * Generate structured output with full metadata for tracing.
+   * NO FALLBACKS - uses specified provider only, fails explicitly if unavailable.
    */
   async generateStructuredWithMetadata<T>(
     prompt: string,
@@ -808,53 +784,39 @@ class UnifiedLLMClient implements LLMClient {
     options: LLMOptions = {}
   ): Promise<{ data: T; metadata: LLMResponse } | null> {
     const {
-      provider,
+      provider = "openai", // Default to OpenAI for structured output
       model,
       timeout = TIMEOUT_LLM_SYNTHESIS,
       temperature = DEFAULT_TEMPERATURE,
     } = options;
 
-    try {
-      // Use specified provider or default to OpenAI for structured output
-      if (provider === "gemini") {
-        return await this.gemini.generateStructuredWithMetadata<T>(
-          prompt,
-          schema,
-          model || GEMINI_MODEL_TEXT,
-          temperature,
-          timeout
-        );
+    // NO FALLBACKS - use specified provider only
+    if (provider === "gemini") {
+      if (!this.gemini.isAvailable()) {
+        console.error("[LLM] Gemini structured requested but GEMINI_API_KEY not set");
+        return null;
       }
+      return await this.gemini.generateStructuredWithMetadata<T>(
+        prompt,
+        schema,
+        model || GEMINI_MODEL_TEXT,
+        temperature,
+        timeout
+      );
+    }
 
-      // Default: OpenAI for structured output
-      if (this.openai.isAvailable()) {
-        const result = await this.openai.generateStructuredWithMetadata<T>(
-          prompt,
-          schema,
-          model || OPENAI_MODEL_SYNTHESIS,
-          temperature,
-          timeout
-        );
-        if (result !== null) return result;
-      }
-
-      // Fallback to Gemini if OpenAI fails or unavailable
-      if (this.gemini.isAvailable()) {
-        return await this.gemini.generateStructuredWithMetadata<T>(
-          prompt,
-          schema,
-          model || GEMINI_MODEL_TEXT,
-          temperature,
-          timeout
-        );
-      }
-
-      console.error("No LLM provider available for structured output");
-      return null;
-    } catch (error) {
-      console.error("generateStructuredWithMetadata failed:", error);
+    // OpenAI (default for structured output)
+    if (!this.openai.isAvailable()) {
+      console.error("[LLM] OpenAI structured requested but OPENAI_API_KEY not set");
       return null;
     }
+    return await this.openai.generateStructuredWithMetadata<T>(
+      prompt,
+      schema,
+      model || OPENAI_MODEL_SYNTHESIS,
+      temperature,
+      timeout
+    );
   }
 }
 

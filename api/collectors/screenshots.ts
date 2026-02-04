@@ -11,8 +11,16 @@
  * - SCREENSHOTONE_API_KEY: API key for ScreenshotOne service
  */
 
-import type { CollectorOutput, ScreenshotsData } from "../audit.types.js";
+import type { CollectorOutput, ScreenshotsData, PageScreenshot } from "../audit.types.js";
 import { TIMEOUT_SCREENSHOT } from "../audit.config.js";
+
+/**
+ * Request object for screenshot collection
+ */
+export interface ScreenshotRequest {
+  homepageUrl: string;
+  pdpUrl: string;
+}
 
 /**
  * Captures a screenshot using ScreenshotOne API
@@ -154,15 +162,49 @@ function sanitizeConsoleMessage(msg: string): string {
 }
 
 /**
- * Captures desktop and mobile screenshots of a URL.
- * Uses ScreenshotOne API in serverless, Playwright locally.
- *
+ * Captures a single page's screenshots (desktop + mobile)
  * @param url - The URL to screenshot
- * @returns CollectorOutput with desktop/mobile screenshots, final URL, and console errors
+ * @param label - Label for logging (e.g., "homepage", "pdp")
+ * @returns PageScreenshot or null if capture failed
+ */
+async function capturePageScreenshots(
+  url: string,
+  label: string
+): Promise<PageScreenshot | null> {
+  console.log(`[Screenshots] Capturing ${label} screenshots for: ${url}`);
+
+  const [desktop, mobile] = await Promise.all([
+    captureWithScreenshotOne(url, { width: 1920, height: 1080 }, false),
+    captureWithScreenshotOne(url, { width: 390, height: 844 }, true),
+  ]);
+
+  // Both desktop and mobile are required for each page
+  if (!desktop || !mobile) {
+    console.error(`[Screenshots] Failed to capture ${label} screenshots - Desktop: ${desktop ? "success" : "failed"}, Mobile: ${mobile ? "success" : "failed"}`);
+    return null;
+  }
+
+  return {
+    desktop,
+    mobile,
+    finalUrl: url,
+    consoleErrors: [], // API doesn't capture console errors
+  };
+}
+
+/**
+ * Captures desktop and mobile screenshots for homepage and PDP.
+ * Uses ScreenshotOne API in serverless, Playwright locally.
+ * Both homepage and PDP screenshots are REQUIRED - returns error if either fails.
+ *
+ * @param request - Object containing homepageUrl and pdpUrl
+ * @returns CollectorOutput with homepage/pdp screenshots (4 total: desktop + mobile for each)
  */
 export async function collectScreenshots(
-  url: string
+  request: ScreenshotRequest
 ): Promise<CollectorOutput<ScreenshotsData>> {
+  const { homepageUrl, pdpUrl } = request;
+
   // In serverless environment, use ScreenshotOne API
   if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
     // Check if API key is configured
@@ -174,40 +216,47 @@ export async function collectScreenshots(
     }
 
     console.log("[Screenshots] Using ScreenshotOne API for serverless environment");
-    console.log(`[Screenshots] Target URL: ${url}`);
+    console.log(`[Screenshots] Homepage URL: ${homepageUrl}`);
+    console.log(`[Screenshots] PDP URL: ${pdpUrl}`);
     console.log(`[Screenshots] SCREENSHOTONE_API_KEY is set: ${!!process.env.SCREENSHOTONE_API_KEY}`);
 
     try {
-      // Capture desktop and mobile in parallel
+      // Capture all 4 screenshots in parallel (homepage desktop/mobile + PDP desktop/mobile)
       const startTime = Date.now();
-      const [desktop, mobile] = await Promise.all([
-        captureWithScreenshotOne(url, { width: 1920, height: 1080 }, false),
-        captureWithScreenshotOne(url, { width: 390, height: 844 }, true),
+      const [homepage, pdp] = await Promise.all([
+        capturePageScreenshots(homepageUrl, "homepage"),
+        capturePageScreenshots(pdpUrl, "pdp"),
       ]);
       const durationMs = Date.now() - startTime;
 
-      console.log(`[Screenshots] Capture completed in ${durationMs}ms - Desktop: ${desktop ? "success" : "failed"}, Mobile: ${mobile ? "success" : "failed"}`);
+      console.log(`[Screenshots] Capture completed in ${durationMs}ms - Homepage: ${homepage ? "success" : "failed"}, PDP: ${pdp ? "success" : "failed"}`);
 
-      if (!desktop && !mobile) {
+      // Both homepage and PDP are REQUIRED - no partial success
+      if (!homepage) {
         return {
           data: null,
-          error: "ScreenshotOne API failed to capture any screenshots. Check Vercel function logs for details.",
+          error: "Failed to capture homepage screenshots. Both desktop and mobile screenshots are required.",
         };
       }
 
-      // Return partial success if only one screenshot was captured
-      const partialWarning = !desktop || !mobile
-        ? ` (partial: desktop=${!!desktop}, mobile=${!!mobile})`
-        : "";
+      if (!pdp) {
+        return {
+          data: null,
+          error: "Failed to capture PDP screenshots. Both desktop and mobile screenshots are required.",
+        };
+      }
 
       return {
         data: {
-          desktop,
-          mobile,
-          finalUrl: url,
-          consoleErrors: [], // API doesn't capture console errors
+          homepage,
+          pdp,
+          // Legacy fields for backward compatibility (use homepage data)
+          desktop: homepage.desktop,
+          mobile: homepage.mobile,
+          finalUrl: homepage.finalUrl,
+          consoleErrors: homepage.consoleErrors,
         },
-        error: partialWarning ? `Some screenshots missing${partialWarning}` : null,
+        error: null,
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -245,82 +294,128 @@ export async function collectScreenshots(
     };
   }
 
-  try {
-    const context = await browser.newContext({
-      viewport: { width: 1920, height: 1080 },
-      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 LabcastAudit/2.0",
-    });
+  /**
+   * Helper function to capture desktop and mobile screenshots for a single URL using Playwright
+   */
+  async function capturePageWithPlaywright(
+    url: string,
+    label: string
+  ): Promise<PageScreenshot | null> {
+    console.log(`[Screenshots] Capturing ${label} screenshots with Playwright for: ${url}`);
 
-    const page = await context.newPage();
+    try {
+      // Desktop context
+      const desktopContext = await browser!.newContext({
+        viewport: { width: 1920, height: 1080 },
+        userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 LabcastAudit/2.0",
+      });
 
-    // Collect console messages
-    const consoleMessages: string[] = [];
-    page.on("console", (msg) => {
-      if (msg.type() === "error") {
-        consoleMessages.push(msg.text());
+      const desktopPage = await desktopContext.newPage();
+
+      // Collect console messages
+      const consoleMessages: string[] = [];
+      desktopPage.on("console", (msg) => {
+        if (msg.type() === "error") {
+          consoleMessages.push(msg.text());
+        }
+      });
+
+      // Navigate to URL with timeout
+      const response = await desktopPage.goto(url, {
+        waitUntil: "networkidle",
+        timeout: TIMEOUT_SCREENSHOT,
+      });
+
+      if (!response) {
+        console.error(`[Screenshots] Failed to navigate to ${label} URL - no response`);
+        await desktopContext.close();
+        return null;
       }
-    });
 
-    // Navigate to URL with timeout
-    const response = await page.goto(url, {
-      waitUntil: "networkidle",
-      timeout: TIMEOUT_SCREENSHOT,
-    });
+      const finalUrl = desktopPage.url();
 
-    if (!response) {
+      // Capture full-page desktop screenshot
+      const desktopBuffer = await desktopPage.screenshot({
+        fullPage: true,
+        type: "png",
+      });
+      const desktop = desktopBuffer.toString("base64");
+
+      await desktopContext.close();
+
+      // Mobile context (iPhone 12 Pro)
+      const mobileContext = await browser!.newContext({
+        viewport: { width: 390, height: 844 },
+        deviceScaleFactor: 3,
+        userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1 LabcastAudit/2.0",
+      });
+
+      const mobilePage = await mobileContext.newPage();
+
+      // Navigate to final URL on mobile
+      await mobilePage.goto(finalUrl, {
+        waitUntil: "networkidle",
+        timeout: TIMEOUT_SCREENSHOT,
+      });
+
+      // Capture full-page mobile screenshot
+      const mobileBuffer = await mobilePage.screenshot({
+        fullPage: true,
+        type: "png",
+      });
+      const mobile = mobileBuffer.toString("base64");
+
+      await mobileContext.close();
+
+      // Sanitize and limit console errors
+      const consoleErrors = consoleMessages
+        .map(sanitizeConsoleMessage)
+        .slice(0, 10);
+
       return {
-        data: null,
-        error: "Failed to navigate to URL - no response",
-      };
-    }
-
-    const finalUrl = page.url();
-
-    // Capture full-page desktop screenshot (entire scrolling page)
-    const desktopBuffer = await page.screenshot({
-      fullPage: true,
-      type: "png",
-    });
-    const desktop = desktopBuffer.toString("base64");
-
-    // Close desktop context
-    await context.close();
-
-    // Create mobile context (iPhone 12 Pro)
-    const mobileContext = await browser.newContext({
-      viewport: { width: 390, height: 844 },
-      deviceScaleFactor: 3,
-      userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1 LabcastAudit/2.0",
-    });
-
-    const mobilePage = await mobileContext.newPage();
-
-    // Navigate to final URL on mobile
-    await mobilePage.goto(finalUrl, {
-      waitUntil: "networkidle",
-      timeout: TIMEOUT_SCREENSHOT,
-    });
-
-    // Capture full-page mobile screenshot (entire scrolling page)
-    const mobileBuffer = await mobilePage.screenshot({
-      fullPage: true,
-      type: "png",
-    });
-    const mobile = mobileBuffer.toString("base64");
-
-    await mobileContext.close();
-
-    // Sanitize and limit console errors
-    const consoleErrors = consoleMessages
-      .map(sanitizeConsoleMessage)
-      .slice(0, 10);
-
-    return {
-      data: {
         desktop,
         mobile,
         finalUrl,
         consoleErrors,
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(`[Screenshots] Failed to capture ${label} screenshots: ${errorMessage}`);
+      return null;
+    }
+  }
+
+  try {
+    console.log(`[Screenshots] Using Playwright for local environment`);
+    console.log(`[Screenshots] Homepage URL: ${homepageUrl}`);
+    console.log(`[Screenshots] PDP URL: ${pdpUrl}`);
+
+    // Capture homepage and PDP screenshots sequentially (Playwright doesn't parallelize well)
+    const homepage = await capturePageWithPlaywright(homepageUrl, "homepage");
+    if (!homepage) {
+      return {
+        data: null,
+        error: "Failed to capture homepage screenshots. Both desktop and mobile screenshots are required.",
+      };
+    }
+
+    const pdp = await capturePageWithPlaywright(pdpUrl, "pdp");
+    if (!pdp) {
+      return {
+        data: null,
+        error: "Failed to capture PDP screenshots. Both desktop and mobile screenshots are required.",
+      };
+    }
+
+    return {
+      data: {
+        homepage,
+        pdp,
+        // Legacy fields for backward compatibility (use homepage data)
+        desktop: homepage.desktop,
+        mobile: homepage.mobile,
+        finalUrl: homepage.finalUrl,
+        consoleErrors: homepage.consoleErrors,
       },
       error: null,
     };

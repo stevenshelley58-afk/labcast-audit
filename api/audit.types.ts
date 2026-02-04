@@ -31,6 +31,28 @@ export type TriState<T> =
  */
 export interface AuditRequest {
   url: string;
+  /** PDP URL is required for visual audit - no guessing allowed */
+  pdpUrl: string;
+}
+
+/**
+ * Result type for operations that can succeed or fail explicitly.
+ * No silent failures - every operation returns this type.
+ */
+export type Result<T> =
+  | { ok: true; data: T }
+  | { ok: false; error: string; code?: string };
+
+/**
+ * Step result for tracking individual pipeline steps
+ */
+export interface StepResult {
+  step: string;
+  status: "success" | "failure";
+  durationMs: number;
+  provider?: string;
+  rawOutput?: unknown;
+  error?: string;
 }
 
 /**
@@ -162,11 +184,26 @@ export interface WellKnownEndpoint {
 export type WellKnownData = Record<string, WellKnownEndpoint>;
 
 /**
- * Screenshot data
+ * Screenshot data for a single page
  */
-export interface ScreenshotsData {
+export interface PageScreenshot {
   desktop: string | null; // base64 or URL
   mobile: string | null; // base64 or URL
+  finalUrl: string;
+  consoleErrors: string[];
+}
+
+/**
+ * Screenshot data for all required pages
+ */
+export interface ScreenshotsData {
+  /** Homepage screenshots - REQUIRED */
+  homepage: PageScreenshot;
+  /** PDP screenshots - REQUIRED */
+  pdp: PageScreenshot;
+  // Legacy fields for backward compatibility (will be deprecated)
+  desktop: string | null;
+  mobile: string | null;
   finalUrl: string;
   consoleErrors: string[];
 }

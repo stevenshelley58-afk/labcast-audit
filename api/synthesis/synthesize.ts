@@ -28,8 +28,8 @@ import type {
   PriorityItem,
   CategorySummary,
   AuditIdentity,
+  Severity,
 } from "../audit.types.js";
-import type { JSONSchema, LLMResponse } from "../llm/client.js";
 import llmClient from "../llm/client.js";
 import { getSynthesisPrompt } from "../llm/prompts.js";
 import { redactSensitiveContent } from "../llm/redact.js";
@@ -89,41 +89,31 @@ interface SynthesisInput {
 }
 
 /**
- * Raw synthesis output from LLM (before transformation to PublicReport)
+ * Parsed markdown sections from LLM response
  */
-interface SynthesisLLMOutput {
-  executiveSummary: {
-    score: number;
-    grade: "A" | "B" | "C" | "D" | "F";
-    headline: string;
-    overview: string;
-    keyStrengths: string[];
-    keyIssues: string[];
-    urgency: "immediate" | "high" | "medium" | "low";
-  };
-  priorities: Array<{
-    rank: number;
-    title: string;
-    description: string;
-    impact: "high" | "medium" | "low";
-    effort: "high" | "medium" | "low";
-  }>;
-  findingsByCategory: Array<{
-    name: string;
-    score: number;
-    findings: Array<{
-      type: string;
-      severity: string;
-      message: string;
-    }>;
-    summary: string;
-  }>;
-  actionPlan: {
-    immediate: string[];
-    shortTerm: string[];
-    longTerm: string[];
-  };
-  limitations: string[];
+interface ParsedMarkdownSections {
+  executiveOverview: string;
+  keyStrengths: string[];
+  keyIssues: string[];
+  crawlSummary: string;
+  technicalSummary: string;
+  securitySummary: string;
+  performanceSummary: string;
+  visualSummary: string;
+  serpSummary: string;
+  immediateActions: string[];
+  shortTermActions: string[];
+  longTermActions: string[];
+}
+
+/**
+ * Category finding counts for score calculation
+ */
+interface CategoryCounts {
+  critical: number;
+  warning: number;
+  info: number;
+  pass: number;
 }
 
 // ============================================================================
@@ -166,8 +156,18 @@ export async function synthesizeReport(
       redactedSnapshot
     );
 
-    // Step 3: Build AuditFindings structure for prompt
-    // Note: visual findings array is empty - visual analysis is passed as text
+    // Step 3: Combine all findings for score calculation
+    const allFindings = [...deterministicFindings, ...llmFindings];
+
+    // Step 4: Calculate scores deterministically
+    const overallScore = calculateOverallScore(allFindings);
+    const grade = calculateGrade(overallScore);
+    const urgency = calculateUrgency(allFindings);
+
+    // Step 5: Calculate category scores deterministically
+    const categoryScores = calculateCategoryScores(allFindings, synthesisInput);
+
+    // Step 6: Build AuditFindings structure for prompt
     const findingsForPrompt: AuditFindings = {
       crawl: synthesisInput.crawlFindings,
       technical: synthesisInput.technicalFindings,
@@ -177,7 +177,7 @@ export async function synthesizeReport(
       serp: synthesisInput.serpFindings,
     };
 
-    // Step 4: Generate prompt with visual analysis text
+    // Step 7: Generate prompt with visual analysis text (markdown-only prompt)
     // Truncate visual analysis if too long to avoid timeout
     const maxVisualLength = 4000; // ~1000 tokens
     let truncatedVisualText = visualAnalysisText;
@@ -187,82 +187,12 @@ export async function synthesizeReport(
     }
     const prompt = getSynthesisPrompt(findingsForPrompt, synthesisInput.coverage, truncatedVisualText);
 
-    // Step 5: Define JSON schema for structured output
-    const schema: JSONSchema = {
-      type: "object",
-      properties: {
-        executiveSummary: {
-          type: "object",
-          properties: {
-            score: { type: "number", minimum: 0, maximum: 100 },
-            grade: { type: "string", enum: ["A", "B", "C", "D", "F"] },
-            headline: { type: "string" },
-            overview: { type: "string" },
-            keyStrengths: { type: "array", items: { type: "string" } },
-            keyIssues: { type: "array", items: { type: "string" } },
-            urgency: { type: "string", enum: ["immediate", "high", "medium", "low"] },
-          },
-          required: ["score", "grade", "headline", "overview", "keyStrengths", "keyIssues", "urgency"],
-        },
-        priorities: {
-          type: "array",
-          items: {
-            type: "object",
-            properties: {
-              rank: { type: "number" },
-              title: { type: "string" },
-              description: { type: "string" },
-              impact: { type: "string", enum: ["high", "medium", "low"] },
-              effort: { type: "string", enum: ["high", "medium", "low"] },
-            },
-            required: ["rank", "title", "description", "impact", "effort"],
-          },
-        },
-        findingsByCategory: {
-          type: "array",
-          items: {
-            type: "object",
-            properties: {
-              name: { type: "string" },
-              score: { type: "number", minimum: 0, maximum: 100 },
-              findings: {
-                type: "array",
-                items: {
-                  type: "object",
-                  properties: {
-                    type: { type: "string" },
-                    severity: { type: "string" },
-                    message: { type: "string" },
-                  },
-                  required: ["type", "severity", "message"],
-                },
-              },
-              summary: { type: "string" },
-            },
-            required: ["name", "score", "findings", "summary"],
-          },
-        },
-        actionPlan: {
-          type: "object",
-          properties: {
-            immediate: { type: "array", items: { type: "string" } },
-            shortTerm: { type: "array", items: { type: "string" } },
-            longTerm: { type: "array", items: { type: "string" } },
-          },
-          required: ["immediate", "shortTerm", "longTerm"],
-        },
-        limitations: { type: "array", items: { type: "string" } },
-      },
-      required: ["executiveSummary", "priorities", "findingsByCategory", "actionPlan", "limitations"],
-    };
+    // Step 8: Call LLM for narrative text only (no JSON schema)
+    console.log(`[Synthesis] Calling LLM with ${TIMEOUT_LLM_SYNTHESIS / 1000}s timeout for markdown narrative...`);
+    const systemInstruction = "You are an SEO expert synthesizing audit findings into actionable recommendations. Return ONLY markdown text, no JSON.";
 
-    // Step 6: Call LLM for synthesis (GPT-4o or fallback)
-    console.log(`[Synthesis] Calling LLM with ${TIMEOUT_LLM_SYNTHESIS / 1000}s timeout...`);
-    const systemInstruction = "You are an SEO expert synthesizing audit findings into actionable recommendations.";
-
-    const llmResult = await llmClient.generateStructuredWithMetadata<SynthesisLLMOutput>(
+    const llmResult = await llmClient.generateTextWithMetadata(
       prompt,
-      schema,
       {
         provider: "openai",
         timeout: TIMEOUT_LLM_SYNTHESIS,
@@ -275,14 +205,25 @@ export async function synthesizeReport(
       return null;
     }
 
-    console.log("[Synthesis] LLM synthesis successful, building public report...");
+    console.log("[Synthesis] LLM synthesis successful, parsing markdown...");
 
-    // Step 7: Transform LLM output to PublicReport
-    const publicReport = transformToPublicReport(
-      llmResult.data,
+    // Step 9: Parse markdown response into sections
+    const parsedSections = parseMarkdownSections(llmResult.text);
+
+    // Step 10: Build priorities from findings (deterministic)
+    const priorities = buildPrioritiesFromFindings(allFindings);
+
+    // Step 11: Assemble final PublicReport with deterministic scores + LLM narratives
+    const publicReport = assemblePublicReport(
       siteSnapshot.identity,
-      coverage,
-      deterministicFindings.length + llmFindings.length
+      overallScore,
+      grade,
+      urgency,
+      parsedSections,
+      priorities,
+      categoryScores,
+      findingsForPrompt,
+      coverage
     );
 
     console.log(`[Synthesis] Synthesis complete. Overall score: ${publicReport.summary.score}`);
@@ -292,15 +233,15 @@ export async function synthesizeReport(
       trace: {
         stepId: "synthesis",
         stepName: "Report Synthesis",
-        model: llmResult.metadata.model,
-        provider: llmResult.metadata.provider,
-        durationMs: llmResult.metadata.durationMs,
+        model: llmResult.model,
+        provider: llmResult.provider,
+        durationMs: llmResult.durationMs,
         prompt,
         promptTemplate: prompt,
         systemInstruction,
-        response: llmResult.metadata.text,
-        usageMetadata: llmResult.metadata.usageMetadata,
-        temperature: llmResult.metadata.temperature,
+        response: llmResult.text,
+        usageMetadata: llmResult.usageMetadata,
+        temperature: llmResult.temperature,
       },
     };
   } catch (error) {
@@ -543,43 +484,290 @@ function prioritizeFindings(findings: AuditFinding[]): AuditFinding[] {
   });
 }
 
+// ============================================================================
+// DETERMINISTIC SCORING FUNCTIONS
+// ============================================================================
+
 /**
- * Transform LLM output to full PublicReport structure
+ * Calculate overall score deterministically from findings.
+ * Formula: 100 - (criticalCount * 15) - (warningCount * 5)
  */
-function transformToPublicReport(
-  llmOutput: SynthesisLLMOutput,
-  identity: AuditIdentity,
-  coverage: CoverageLimitations,
-  totalFindings: number
-): PublicReport {
-  // Build executive summary
-  const executiveSummary: ExecutiveSummary = {
-    score: llmOutput.executiveSummary.score,
-    grade: llmOutput.executiveSummary.grade,
-    headline: llmOutput.executiveSummary.headline,
-    overview: llmOutput.executiveSummary.overview,
-    keyStrengths: llmOutput.executiveSummary.keyStrengths,
-    keyIssues: llmOutput.executiveSummary.keyIssues,
-    urgency: llmOutput.executiveSummary.urgency,
+function calculateOverallScore(findings: AuditFinding[]): number {
+  const criticalCount = findings.filter((f) => f.severity === "critical").length;
+  const warningCount = findings.filter((f) => f.severity === "warning").length;
+
+  const score = 100 - (criticalCount * 15) - (warningCount * 5);
+  return Math.max(0, Math.min(100, score));
+}
+
+/**
+ * Calculate grade from score.
+ * A (90+), B (80+), C (70+), D (60+), F (<60)
+ */
+function calculateGrade(score: number): "A" | "B" | "C" | "D" | "F" {
+  if (score >= 90) return "A";
+  if (score >= 80) return "B";
+  if (score >= 70) return "C";
+  if (score >= 60) return "D";
+  return "F";
+}
+
+/**
+ * Calculate urgency based on critical findings count.
+ */
+function calculateUrgency(findings: AuditFinding[]): "immediate" | "high" | "medium" | "low" {
+  const criticalCount = findings.filter((f) => f.severity === "critical").length;
+
+  if (criticalCount >= 3) return "immediate";
+  if (criticalCount >= 1) return "high";
+
+  const warningCount = findings.filter((f) => f.severity === "warning").length;
+  if (warningCount >= 5) return "medium";
+
+  return "low";
+}
+
+/**
+ * Calculate category scores deterministically.
+ * Formula: 100 - (categoryCritical * 20) - (categoryWarning * 10)
+ */
+function calculateCategoryScores(
+  allFindings: AuditFinding[],
+  synthesisInput: SynthesisInput
+): Record<string, number> {
+  const calculateCategoryScore = (categoryFindings: AuditFinding[]): number => {
+    const critical = categoryFindings.filter((f) => f.severity === "critical").length;
+    const warning = categoryFindings.filter((f) => f.severity === "warning").length;
+    const score = 100 - (critical * 20) - (warning * 10);
+    return Math.max(0, Math.min(100, score));
   };
 
-  // Build priorities
-  const priorities: PriorityItem[] = llmOutput.priorities.map((p) => ({
-    rank: p.rank,
-    title: p.title,
-    description: p.description,
-    impact: p.impact,
-    effort: p.effort,
-  }));
+  return {
+    crawl: calculateCategoryScore(synthesisInput.crawlFindings),
+    technical: calculateCategoryScore(synthesisInput.technicalFindings),
+    security: calculateCategoryScore(synthesisInput.securityFindings),
+    performance: calculateCategoryScore(synthesisInput.performanceFindings),
+    visual: 100, // Visual findings are text-based, default to 100
+    serp: calculateCategoryScore(synthesisInput.serpFindings),
+  };
+}
 
-  // Build category summaries
+// ============================================================================
+// MARKDOWN PARSING FUNCTIONS
+// ============================================================================
+
+/**
+ * Parse markdown response from LLM into structured sections.
+ */
+function parseMarkdownSections(markdown: string): ParsedMarkdownSections {
+  const sections: ParsedMarkdownSections = {
+    executiveOverview: "",
+    keyStrengths: [],
+    keyIssues: [],
+    crawlSummary: "",
+    technicalSummary: "",
+    securitySummary: "",
+    performanceSummary: "",
+    visualSummary: "",
+    serpSummary: "",
+    immediateActions: [],
+    shortTermActions: [],
+    longTermActions: [],
+  };
+
+  // Extract executive overview (first section or content before first heading)
+  const execMatch = markdown.match(/##\s*Executive\s*(?:Summary|Overview)[^\n]*\n([\s\S]*?)(?=##\s*|$)/i);
+  if (execMatch) {
+    sections.executiveOverview = execMatch[1].trim();
+  } else {
+    // Fallback: take first paragraphs before any heading
+    const firstParagraphs = markdown.match(/^([\s\S]*?)(?=##\s*)/);
+    if (firstParagraphs) {
+      sections.executiveOverview = firstParagraphs[1].trim();
+    }
+  }
+
+  // Extract key strengths
+  const strengthsMatch = markdown.match(/##\s*(?:Key\s*)?Strengths[^\n]*\n([\s\S]*?)(?=##\s*|$)/i);
+  if (strengthsMatch) {
+    sections.keyStrengths = parseBulletList(strengthsMatch[1]);
+  }
+
+  // Extract key issues
+  const issuesMatch = markdown.match(/##\s*(?:Key\s*)?Issues[^\n]*\n([\s\S]*?)(?=##\s*|$)/i);
+  if (issuesMatch) {
+    sections.keyIssues = parseBulletList(issuesMatch[1]);
+  }
+
+  // Extract category summaries
+  const crawlMatch = markdown.match(/###?\s*Crawl[^\n]*\n([\s\S]*?)(?=###?\s*|$)/i);
+  if (crawlMatch) sections.crawlSummary = crawlMatch[1].trim();
+
+  const techMatch = markdown.match(/###?\s*Technical[^\n]*\n([\s\S]*?)(?=###?\s*|$)/i);
+  if (techMatch) sections.technicalSummary = techMatch[1].trim();
+
+  const securityMatch = markdown.match(/###?\s*Security[^\n]*\n([\s\S]*?)(?=###?\s*|$)/i);
+  if (securityMatch) sections.securitySummary = securityMatch[1].trim();
+
+  const perfMatch = markdown.match(/###?\s*Performance[^\n]*\n([\s\S]*?)(?=###?\s*|$)/i);
+  if (perfMatch) sections.performanceSummary = perfMatch[1].trim();
+
+  const visualMatch = markdown.match(/###?\s*Visual[^\n]*\n([\s\S]*?)(?=###?\s*|$)/i);
+  if (visualMatch) sections.visualSummary = visualMatch[1].trim();
+
+  const serpMatch = markdown.match(/###?\s*SERP[^\n]*\n([\s\S]*?)(?=###?\s*|$)/i);
+  if (serpMatch) sections.serpSummary = serpMatch[1].trim();
+
+  // Extract action items
+  const immediateMatch = markdown.match(/###?\s*Immediate[^\n]*\n([\s\S]*?)(?=###?\s*|$)/i);
+  if (immediateMatch) sections.immediateActions = parseBulletList(immediateMatch[1]);
+
+  const shortTermMatch = markdown.match(/###?\s*Short[\s-]*Term[^\n]*\n([\s\S]*?)(?=###?\s*|$)/i);
+  if (shortTermMatch) sections.shortTermActions = parseBulletList(shortTermMatch[1]);
+
+  const longTermMatch = markdown.match(/###?\s*Long[\s-]*Term[^\n]*\n([\s\S]*?)(?=###?\s*|$)/i);
+  if (longTermMatch) sections.longTermActions = parseBulletList(longTermMatch[1]);
+
+  return sections;
+}
+
+/**
+ * Parse a bullet list from markdown text.
+ */
+function parseBulletList(text: string): string[] {
+  const lines = text.split("\n");
+  const items: string[] = [];
+
+  for (const line of lines) {
+    const match = line.match(/^\s*[-*•]\s+(.+)/);
+    if (match) {
+      items.push(match[1].trim());
+    }
+  }
+
+  return items;
+}
+
+/**
+ * Build priorities from findings deterministically.
+ * Sorts by severity, takes top 5.
+ */
+function buildPrioritiesFromFindings(findings: AuditFinding[]): PriorityItem[] {
+  // Sort by severity (critical first)
+  const severityOrder: Record<Severity, number> = {
+    critical: 0,
+    warning: 1,
+    info: 2,
+    pass: 3,
+  };
+
+  const sorted = [...findings]
+    .filter((f) => f.severity === "critical" || f.severity === "warning")
+    .sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity])
+    .slice(0, 5);
+
+  return sorted.map((finding, index) => ({
+    rank: index + 1,
+    title: finding.message.split(".")[0] || finding.message,
+    description: finding.message,
+    impact: finding.severity === "critical" ? "high" : "medium" as "high" | "medium" | "low",
+    effort: "medium" as "high" | "medium" | "low", // Default to medium
+  }));
+}
+
+/**
+ * Generate a headline from findings.
+ */
+function generateHeadline(score: number, criticalCount: number, warningCount: number): string {
+  if (score >= 90) {
+    return "Excellent SEO Health - Minor Optimizations Recommended";
+  } else if (score >= 80) {
+    return "Good SEO Foundation - Some Improvements Needed";
+  } else if (score >= 70) {
+    return "Moderate SEO Issues - Attention Required";
+  } else if (score >= 60) {
+    return `SEO Needs Work - ${criticalCount} Critical Issues Found`;
+  } else {
+    return `Significant SEO Problems - ${criticalCount} Critical, ${warningCount} Warnings`;
+  }
+}
+
+/**
+ * Assemble the final PublicReport from deterministic scores and LLM narratives.
+ */
+function assemblePublicReport(
+  identity: AuditIdentity,
+  score: number,
+  grade: "A" | "B" | "C" | "D" | "F",
+  urgency: "immediate" | "high" | "medium" | "low",
+  parsedSections: ParsedMarkdownSections,
+  priorities: PriorityItem[],
+  categoryScores: Record<string, number>,
+  findings: AuditFindings,
+  coverage: CoverageLimitations
+): PublicReport {
+  const criticalCount = Object.values(findings)
+    .flat()
+    .filter((f) => f.severity === "critical").length;
+  const warningCount = Object.values(findings)
+    .flat()
+    .filter((f) => f.severity === "warning").length;
+
+  // Build executive summary
+  const executiveSummary: ExecutiveSummary = {
+    score,
+    grade,
+    headline: generateHeadline(score, criticalCount, warningCount),
+    overview: parsedSections.executiveOverview || "Audit analysis complete. See detailed findings below.",
+    keyStrengths: parsedSections.keyStrengths.length > 0
+      ? parsedSections.keyStrengths
+      : ["Site is accessible and loading"],
+    keyIssues: parsedSections.keyIssues.length > 0
+      ? parsedSections.keyIssues
+      : criticalCount > 0
+        ? [`${criticalCount} critical issues require attention`]
+        : ["No critical issues found"],
+    urgency,
+  };
+
+  // Build category summaries with deterministic scores and LLM narratives
   const categories: PublicReport["categories"] = {
-    crawl: buildCategorySummary("crawl", llmOutput.findingsByCategory),
-    technical: buildCategorySummary("technical", llmOutput.findingsByCategory),
-    security: buildCategorySummary("security", llmOutput.findingsByCategory),
-    performance: buildCategorySummary("performance", llmOutput.findingsByCategory),
-    visual: buildCategorySummary("visual", llmOutput.findingsByCategory),
-    serp: buildCategorySummary("serp", llmOutput.findingsByCategory),
+    crawl: {
+      name: "crawl",
+      score: categoryScores.crawl,
+      findings: findings.crawl,
+      summary: parsedSections.crawlSummary || buildDefaultCategorySummary("crawl", findings.crawl),
+    },
+    technical: {
+      name: "technical",
+      score: categoryScores.technical,
+      findings: findings.technical,
+      summary: parsedSections.technicalSummary || buildDefaultCategorySummary("technical", findings.technical),
+    },
+    security: {
+      name: "security",
+      score: categoryScores.security,
+      findings: findings.security,
+      summary: parsedSections.securitySummary || buildDefaultCategorySummary("security", findings.security),
+    },
+    performance: {
+      name: "performance",
+      score: categoryScores.performance,
+      findings: findings.performance,
+      summary: parsedSections.performanceSummary || buildDefaultCategorySummary("performance", findings.performance),
+    },
+    visual: {
+      name: "visual",
+      score: categoryScores.visual,
+      findings: findings.visual,
+      summary: parsedSections.visualSummary || buildDefaultCategorySummary("visual", findings.visual),
+    },
+    serp: {
+      name: "serp",
+      score: categoryScores.serp,
+      findings: findings.serp,
+      summary: parsedSections.serpSummary || buildDefaultCategorySummary("serp", findings.serp),
+    },
   };
 
   return {
@@ -594,76 +782,21 @@ function transformToPublicReport(
 }
 
 /**
- * Keyword mappings for fuzzy category matching.
- * Used when LLM returns category names that don't exactly match our expected names.
+ * Build a default category summary when LLM text is not available.
  */
-const CATEGORY_KEYWORDS: Record<string, string[]> = {
-  crawl: ["crawl", "index", "robot", "sitemap", "access", "indexability"],
-  technical: ["technical", "tech", "seo", "meta", "schema", "structured"],
-  security: ["security", "secure", "ssl", "https", "header", "vulnerability"],
-  performance: ["performance", "speed", "load", "core web", "lighthouse", "vitals"],
-  visual: ["visual", "ux", "design", "ui", "layout", "mobile", "aesthetic", "appearance"],
-  serp: ["serp", "search", "snippet", "ctr", "intent", "ranking", "result"],
-};
+function buildDefaultCategorySummary(category: string, findings: AuditFinding[]): string {
+  const criticalCount = findings.filter((f) => f.severity === "critical").length;
+  const warningCount = findings.filter((f) => f.severity === "warning").length;
 
-/**
- * Build a CategorySummary from LLM output with robust keyword-based matching.
- * Falls back to keyword scoring when exact name match fails.
- */
-function buildCategorySummary(
-  categoryName: string,
-  llmCategories: SynthesisLLMOutput["findingsByCategory"]
-): CategorySummary {
-  // First, try exact match (case-insensitive)
-  let categoryData = llmCategories.find(
-    (c) => c.name.toLowerCase() === categoryName.toLowerCase()
-  );
-
-  // If no exact match, use keyword-based scoring
-  if (!categoryData) {
-    const keywords = CATEGORY_KEYWORDS[categoryName.toLowerCase()] || [categoryName];
-
-    let bestMatch: SynthesisLLMOutput["findingsByCategory"][0] | null = null;
-    let bestScore = 0;
-
-    for (const cat of llmCategories) {
-      const name = cat.name.toLowerCase();
-      const score = keywords.filter(kw => name.includes(kw)).length;
-      if (score > bestScore) {
-        bestScore = score;
-        bestMatch = cat;
-      }
-    }
-
-    if (bestMatch) {
-      console.log(`[Synthesis] Fuzzy matched category "${categoryName}" to LLM category "${bestMatch.name}" (score: ${bestScore})`);
-      categoryData = bestMatch;
-    }
+  if (findings.length === 0) {
+    return `No ${category} issues detected.`;
   }
 
-  if (!categoryData) {
-    // LOG WARNING - don't silently default
-    console.warn(`[Synthesis] No match found for category "${categoryName}". ` +
-      `LLM returned: ${llmCategories.map(c => c.name).join(", ")}`);
-    return {
-      name: categoryName,
-      score: 100,
-      findings: [],
-      summary: `No ${categoryName} issues detected.`,
-    };
-  }
+  const parts: string[] = [];
+  if (criticalCount > 0) parts.push(`${criticalCount} critical issue${criticalCount > 1 ? "s" : ""}`);
+  if (warningCount > 0) parts.push(`${warningCount} warning${warningCount > 1 ? "s" : ""}`);
 
-  return {
-    name: categoryName,
-    score: categoryData.score,
-    findings: categoryData.findings.map((f) => ({
-      type: f.type as AuditFinding["type"],
-      severity: f.severity as AuditFinding["severity"],
-      message: f.message,
-      evidence: {},
-    })),
-    summary: categoryData.summary,
-  };
+  return `Found ${parts.join(" and ")} in ${category} audit.`;
 }
 
 // ============================================================================
@@ -672,9 +805,13 @@ function buildCategorySummary(
 
 export {
   calculateSecurityScore,
+  calculateOverallScore,
+  calculateGrade,
+  calculateUrgency,
   categorizeFindings,
   prioritizeFindings,
   redactFindings,
   redactCoverage,
   redactSiteSnapshot,
+  parseMarkdownSections,
 };

@@ -85,7 +85,14 @@ function generateSamplingPlan(extractedUrls: string[], maxPages: number): UrlSam
  * @param identity - The audit identity
  * @returns RawSnapshot with all 13 collector outputs
  */
-export async function collectAll(identity: AuditIdentity): Promise<RawSnapshot> {
+export async function collectAll(identity: AuditIdentity, pdpUrl: string): Promise<RawSnapshot> {
+  // Validate pdpUrl is provided
+  if (!pdpUrl) {
+    const error = new Error("PDP URL is required");
+    (error as any).code = "PDP_URL_REQUIRED";
+    throw error;
+  }
+
   const { normalizedUrl } = identity;
   const limit = pLimit(CONCURRENCY_LIMIT);
 
@@ -108,7 +115,7 @@ export async function collectAll(identity: AuditIdentity): Promise<RawSnapshot> 
     limit(() => collectDnsFacts(normalizedUrl)),
     limit(() => collectTlsFacts(normalizedUrl)),
     limit(() => collectWellKnown(normalizedUrl)),
-    limit(() => collectScreenshots(normalizedUrl)),
+    limit(() => collectScreenshots({ homepageUrl: normalizedUrl, pdpUrl })),
     limit(() => collectLighthouse(normalizedUrl)),
     limit(() => collectSerp(normalizedUrl)),
     limit(() => collectSquirrelscan(normalizedUrl)),

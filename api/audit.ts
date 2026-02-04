@@ -53,14 +53,25 @@ export default async function handler(
     return;
   }
 
-  // Extract URL from request body
-  const { url } = req.body;
+  // Extract URL and PDP URL from request body
+  const { url, pdpUrl } = req.body;
 
   // Validate URL presence
   if (!url || typeof url !== "string") {
     res.status(400).json({
       error: "URL required",
+      code: "URL_REQUIRED",
       message: "Please provide a URL in the request body: { \"url\": \"https://example.com\" }",
+    });
+    return;
+  }
+
+  // Validate PDP URL presence
+  if (!pdpUrl || typeof pdpUrl !== "string") {
+    res.status(400).json({
+      error: "PDP URL required",
+      code: "PDP_URL_REQUIRED",
+      message: "A product detail page URL must be provided. No guessing or heuristics allowed.",
     });
     return;
   }
@@ -90,7 +101,7 @@ export default async function handler(
     // Run the audit pipeline
     // The pipeline handles all errors internally and never throws
     console.log(`[API] Starting audit for: ${trimmedUrl}`);
-    const result = await runAuditPipeline({ url: trimmedUrl });
+    const result = await runAuditPipeline({ url: trimmedUrl, pdpUrl: pdpUrl.trim() });
 
     console.log(`[API] Audit complete for: ${result.identity.normalizedUrl}`);
 
@@ -150,7 +161,7 @@ export default async function handler(
           ? new Date(result.timings.completedAt).getTime() - new Date(result.timings.startedAt).getTime()
           : 0,
         screenshotCaptured: result.coverage.screenshotsCaptured,
-        pdpAnalyzed: false,
+        pdpAnalyzed: true,
       },
     });
     return;
@@ -160,15 +171,10 @@ export default async function handler(
     console.error("[API] Unexpected error during audit:", error);
 
     res.status(500).json({
-      error: "Audit failed",
-      message: error instanceof Error ? error.message : "Unknown error occurred",
-      // Include a minimal valid response so clients can still display something
-      fallback: {
-        url: trimmedUrl,
-        score: 0,
-        grade: "F",
-        status: "failed",
-      },
+      error: error instanceof Error ? error.message : "Unknown error occurred",
+      code: "AUDIT_FAILED",
+      traces: [],
+      stepResults: [],
     });
     return;
   }
