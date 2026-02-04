@@ -108,7 +108,7 @@ export async function collectAll(identity: AuditIdentity, pdpUrl?: string): Prom
     limit(() => collectDnsFacts(normalizedUrl)),
     limit(() => collectTlsFacts(normalizedUrl)),
     limit(() => collectWellKnown(normalizedUrl)),
-    limit(() => collectScreenshots({ homepageUrl: normalizedUrl, pdpUrl: pdpUrl || normalizedUrl })),
+    limit(() => collectScreenshots({ homepageUrl: normalizedUrl, pdpUrl })),
     limit(() => collectLighthouse(normalizedUrl)),
     limit(() => collectSerp(normalizedUrl)),
     limit(() => collectSquirrelscan(normalizedUrl)),

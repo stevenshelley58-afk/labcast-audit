@@ -31,8 +31,8 @@ export type TriState<T> =
  */
 export interface AuditRequest {
   url: string;
-  /** PDP URL is required for visual audit - no guessing allowed */
-  pdpUrl: string;
+  /** PDP URL is optional - if not provided, PDP screenshots are skipped */
+  pdpUrl?: string;
 }
 
 /**
@@ -199,8 +199,8 @@ export interface PageScreenshot {
 export interface ScreenshotsData {
   /** Homepage screenshots - REQUIRED */
   homepage: PageScreenshot;
-  /** PDP screenshots - REQUIRED */
-  pdp: PageScreenshot;
+  /** PDP screenshots - only present if pdpUrl was provided */
+  pdp?: PageScreenshot;
   // Legacy fields for backward compatibility (will be deprecated)
   desktop: string | null;
   mobile: string | null;

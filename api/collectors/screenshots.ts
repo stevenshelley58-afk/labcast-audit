@@ -19,7 +19,7 @@ import { TIMEOUT_SCREENSHOT } from "../audit.config.js";
  */
 export interface ScreenshotRequest {
   homepageUrl: string;
-  pdpUrl?: string;  // Optional - falls back to homepageUrl if not provided
+  pdpUrl?: string;  // Optional - if not provided, PDP screenshots are skipped entirely
 }
 
 /**
@@ -203,9 +203,7 @@ async function capturePageScreenshots(
 export async function collectScreenshots(
   request: ScreenshotRequest
 ): Promise<CollectorOutput<ScreenshotsData>> {
-  const { homepageUrl } = request;
-  // Use homepage as PDP fallback if not provided
-  const pdpUrl = request.pdpUrl || homepageUrl;
+  const { homepageUrl, pdpUrl } = request;
 
   // In serverless environment, use ScreenshotOne API
   if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
@@ -219,21 +217,14 @@ export async function collectScreenshots(
 
     console.log("[Screenshots] Using ScreenshotOne API for serverless environment");
     console.log(`[Screenshots] Homepage URL: ${homepageUrl}`);
-    console.log(`[Screenshots] PDP URL: ${pdpUrl}`);
+    console.log(`[Screenshots] PDP URL: ${pdpUrl || "(not provided - skipping)"}`);
     console.log(`[Screenshots] SCREENSHOTONE_API_KEY is set: ${!!process.env.SCREENSHOTONE_API_KEY}`);
 
     try {
-      // Capture all 4 screenshots in parallel (homepage desktop/mobile + PDP desktop/mobile)
       const startTime = Date.now();
-      const [homepage, pdp] = await Promise.all([
-        capturePageScreenshots(homepageUrl, "homepage"),
-        capturePageScreenshots(pdpUrl, "pdp"),
-      ]);
-      const durationMs = Date.now() - startTime;
 
-      console.log(`[Screenshots] Capture completed in ${durationMs}ms - Homepage: ${homepage ? "success" : "failed"}, PDP: ${pdp ? "success" : "failed"}`);
-
-      // Both homepage and PDP are REQUIRED - no partial success
+      // Capture homepage screenshots (required)
+      const homepage = await capturePageScreenshots(homepageUrl, "homepage");
       if (!homepage) {
         return {
           data: null,
@@ -241,12 +232,18 @@ export async function collectScreenshots(
         };
       }
 
-      if (!pdp) {
-        return {
-          data: null,
-          error: "Failed to capture PDP screenshots. Both desktop and mobile screenshots are required.",
-        };
+      // Only capture PDP if pdpUrl was provided
+      let pdp: PageScreenshot | undefined;
+      if (pdpUrl) {
+        pdp = await capturePageScreenshots(pdpUrl, "pdp") || undefined;
+        // Note: PDP failure is non-fatal - we log it but continue
+        if (!pdp) {
+          console.warn("[Screenshots] PDP capture failed, but continuing with homepage only");
+        }
       }
+
+      const durationMs = Date.now() - startTime;
+      console.log(`[Screenshots] Capture completed in ${durationMs}ms - Homepage: success, PDP: ${pdpUrl ? (pdp ? "success" : "failed") : "skipped"}`);
 
       return {
         data: {
@@ -390,9 +387,9 @@ export async function collectScreenshots(
   try {
     console.log(`[Screenshots] Using Playwright for local environment`);
     console.log(`[Screenshots] Homepage URL: ${homepageUrl}`);
-    console.log(`[Screenshots] PDP URL: ${pdpUrl}`);
+    console.log(`[Screenshots] PDP URL: ${pdpUrl || "(not provided - skipping)"}`);
 
-    // Capture homepage and PDP screenshots sequentially (Playwright doesn't parallelize well)
+    // Capture homepage screenshots (required)
     const homepage = await capturePageWithPlaywright(homepageUrl, "homepage");
     if (!homepage) {
       return {
@@ -401,12 +398,14 @@ export async function collectScreenshots(
       };
     }
 
-    const pdp = await capturePageWithPlaywright(pdpUrl, "pdp");
-    if (!pdp) {
-      return {
-        data: null,
-        error: "Failed to capture PDP screenshots. Both desktop and mobile screenshots are required.",
-      };
+    // Only capture PDP if pdpUrl was provided
+    let pdp: PageScreenshot | undefined;
+    if (pdpUrl) {
+      pdp = await capturePageWithPlaywright(pdpUrl, "pdp") || undefined;
+      // Note: PDP failure is non-fatal - we log it but continue
+      if (!pdp) {
+        console.warn("[Screenshots] PDP capture failed, but continuing with homepage only");
+      }
     }
 
     return {
