@@ -1,11 +1,134 @@
 import React, { useState } from 'react';
 import { AuditReport, AuditFinding } from '../types';
 import { AuditChart } from './AuditChart';
-import { CheckCircle, AlertTriangle, XCircle, ArrowRight, Download, Layers, Cpu, Palette, MousePointer, ExternalLink, MapPin } from 'lucide-react';
+import {
+  CheckCircle, AlertTriangle, XCircle, ArrowRight, Download,
+  ChevronDown, ChevronUp, Palette, Zap, Search, Shield,
+  Share2, Wrench, FileText, Eye, Globe
+} from 'lucide-react';
 
 interface ResultsDashboardProps {
   report: AuditReport;
 }
+
+// ============================================================================
+// SECTION CONFIGURATION
+// ============================================================================
+
+interface SectionConfig {
+  id: string;
+  title: string;
+  icon: React.ReactNode;
+  categories: string[]; // which finding categories map to this section
+  color: string;
+}
+
+const SECTIONS: SectionConfig[] = [
+  {
+    id: 'design',
+    title: 'Design & UX',
+    icon: <Palette size={18} />,
+    categories: ['design'],
+    color: '#8b5cf6',
+  },
+  {
+    id: 'performance',
+    title: 'Performance & Speed',
+    icon: <Zap size={18} />,
+    categories: ['technical'],
+    color: '#f59e0b',
+  },
+  {
+    id: 'seo',
+    title: 'SEO & Keywords',
+    icon: <Search size={18} />,
+    categories: ['seo'],
+    color: '#3b82f6',
+  },
+  {
+    id: 'security',
+    title: 'Security & Trust',
+    icon: <Shield size={18} />,
+    categories: ['security'],
+    color: '#10b981',
+  },
+  {
+    id: 'content',
+    title: 'Content & Conversion',
+    icon: <FileText size={18} />,
+    categories: ['content', 'conversion'],
+    color: '#ec4899',
+  },
+];
+
+// ============================================================================
+// HELPERS
+// ============================================================================
+
+function getSectionRating(findings: AuditFinding[]): 'Good' | 'Needs Work' | 'Critical' {
+  const highCount = findings.filter(f => f.impact === 'High').length;
+  const medCount = findings.filter(f => f.impact === 'Medium').length;
+  if (highCount >= 2) return 'Critical';
+  if (highCount >= 1 || medCount >= 3) return 'Needs Work';
+  return 'Good';
+}
+
+function getRatingStyles(rating: 'Good' | 'Needs Work' | 'Critical') {
+  switch (rating) {
+    case 'Critical':
+      return { bg: 'bg-red-50', text: 'text-red-600', border: 'border-red-100', dot: 'bg-red-500' };
+    case 'Needs Work':
+      return { bg: 'bg-amber-50', text: 'text-amber-600', border: 'border-amber-100', dot: 'bg-amber-500' };
+    case 'Good':
+      return { bg: 'bg-green-50', text: 'text-green-600', border: 'border-green-100', dot: 'bg-green-500' };
+  }
+}
+
+function generateSectionSummary(sectionId: string, findings: AuditFinding[], report: AuditReport): string {
+  const highCount = findings.filter(f => f.impact === 'High').length;
+  const medCount = findings.filter(f => f.impact === 'Medium').length;
+  const total = findings.length;
+
+  if (total === 0) return 'No issues detected in this area. Everything looks good.';
+
+  switch (sectionId) {
+    case 'design':
+      return report.designAnalysis.critique || `Found ${total} design-related observations. ${highCount > 0 ? `${highCount} need urgent attention.` : 'Most are minor improvements.'}`;
+    case 'performance':
+      if (highCount >= 2) return `Your site has ${highCount} critical speed issues that are likely costing you visitors. Slow sites lose more than half their traffic.`;
+      if (highCount >= 1) return `There's a significant speed issue that needs addressing, along with ${medCount} smaller optimisations.`;
+      return `Performance is generally acceptable with ${total} minor improvements available.`;
+    case 'seo':
+      if (highCount >= 2) return `${highCount} critical SEO issues are limiting your visibility in search results. These need immediate attention.`;
+      if (highCount >= 1) return `One major SEO issue found alongside ${medCount} optimisations that could improve your rankings.`;
+      return `SEO fundamentals are in place with ${total} areas for improvement.`;
+    case 'security':
+      if (highCount >= 1) return `${highCount} security concern${highCount > 1 ? 's' : ''} found that could affect visitor trust and browser warnings.`;
+      return total > 0 ? `${total} minor security hardening recommendation${total > 1 ? 's' : ''} to improve trust signals.` : 'Security fundamentals are solid.';
+    case 'content':
+      if (highCount >= 1) return `${highCount} content or conversion issue${highCount > 1 ? 's' : ''} may be preventing visitors from taking action.`;
+      return `${total} content improvement${total > 1 ? 's' : ''} that could help convert more visitors.`;
+    default:
+      return `${total} finding${total > 1 ? 's' : ''} in this area.`;
+  }
+}
+
+// ============================================================================
+// COMPONENTS
+// ============================================================================
+
+const ImpactBadge = ({ impact }: { impact: string }) => {
+  const styles = {
+    High: 'border-red-100 text-red-600 bg-red-50',
+    Medium: 'border-amber-100 text-amber-600 bg-amber-50',
+    Low: 'border-blue-100 text-blue-600 bg-blue-50',
+  };
+  return (
+    <span className={`text-[10px] uppercase px-3 py-1 rounded-full font-bold tracking-wide border ${styles[impact as keyof typeof styles] || styles.Low}`}>
+      {impact}
+    </span>
+  );
+};
 
 const SeverityIcon = ({ impact }: { impact: string }) => {
   switch (impact) {
@@ -16,29 +139,153 @@ const SeverityIcon = ({ impact }: { impact: string }) => {
   }
 };
 
-const CategoryIcon = ({ category }: { category: string }) => {
-    switch (category) {
-        case 'seo': return <Layers size={14} />;
-        case 'technical': return <Cpu size={14} />;
-        case 'design': return <Palette size={14} />;
-        case 'conversion': return <MousePointer size={14} />;
-        default: return <Layers size={14} />;
-    }
+/** Individual finding row inside an expanded section */
+function FindingRow({ finding }: { finding: AuditFinding }) {
+  return (
+    <div className="p-6 md:p-8 hover:bg-gray-50/50 transition-colors border-t border-gray-100 first:border-t-0">
+      <div className="flex items-start gap-4 md:gap-6">
+        <div className="mt-1 flex-shrink-0 p-2 bg-gray-50 rounded-xl">
+          <SeverityIcon impact={finding.impact} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex flex-wrap items-center gap-3 mb-2">
+            <h4 className="text-black font-bold text-base md:text-lg">{finding.title}</h4>
+            <ImpactBadge impact={finding.impact} />
+          </div>
+
+          <p className="text-gray-600 text-sm mb-4 leading-relaxed max-w-4xl">{finding.description}</p>
+
+          <div className="bg-gray-50 p-4 md:p-5 rounded-2xl border border-gray-100 flex gap-4">
+            <div className="flex-shrink-0 mt-0.5">
+              <ArrowRight size={16} className="text-black" />
+            </div>
+            <div className="flex-1">
+              <span className="text-black text-xs font-bold uppercase tracking-wider block mb-1">Recommendation</span>
+              <p className="text-gray-700 text-sm font-medium">{finding.fix}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
+/** Collapsible section card — summary visible, detail expandable */
+function SectionCard({
+  config,
+  findings,
+  report,
+}: {
+  config: SectionConfig;
+  findings: AuditFinding[];
+  report: AuditReport;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const rating = getSectionRating(findings);
+  const ratingStyles = getRatingStyles(rating);
+  const summary = generateSectionSummary(config.id, findings, report);
+
+  // Sort findings: High first, then Medium, then Low
+  const sortedFindings = [...findings].sort((a, b) => {
+    const order = { High: 0, Medium: 1, Low: 2 };
+    return (order[a.impact as keyof typeof order] ?? 2) - (order[b.impact as keyof typeof order] ?? 2);
+  });
+
+  return (
+    <div className="bg-white rounded-[32px] border border-gray-100 shadow-sm overflow-hidden transition-all">
+      {/* Summary — always visible */}
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full text-left p-6 md:p-8 flex items-start gap-4 md:gap-6 hover:bg-gray-50/30 transition-colors cursor-pointer"
+      >
+        {/* Icon */}
+        <div
+          className="flex-shrink-0 w-10 h-10 md:w-12 md:h-12 rounded-2xl flex items-center justify-center text-white"
+          style={{ backgroundColor: config.color }}
+        >
+          {config.icon}
+        </div>
+
+        {/* Text */}
+        <div className="flex-1 min-w-0">
+          <div className="flex flex-wrap items-center gap-3 mb-2">
+            <h3 className="text-lg md:text-xl font-bold text-black">{config.title}</h3>
+            <span className={`text-[11px] uppercase px-3 py-1 rounded-full font-bold tracking-wide border ${ratingStyles.bg} ${ratingStyles.text} ${ratingStyles.border}`}>
+              {rating}
+            </span>
+          </div>
+          <p className="text-gray-500 text-sm md:text-base leading-relaxed">{summary}</p>
+        </div>
+
+        {/* Expand indicator */}
+        <div className="flex-shrink-0 flex items-center gap-2 mt-1">
+          {findings.length > 0 && (
+            <span className="text-xs text-gray-400 font-medium hidden md:inline">
+              {findings.length} finding{findings.length !== 1 ? 's' : ''}
+            </span>
+          )}
+          {findings.length > 0 ? (
+            expanded ? (
+              <ChevronUp size={20} className="text-gray-400" />
+            ) : (
+              <ChevronDown size={20} className="text-gray-400" />
+            )
+          ) : null}
+        </div>
+      </button>
+
+      {/* Detail — expandable */}
+      {expanded && findings.length > 0 && (
+        <div className="border-t border-gray-100">
+          {sortedFindings.map((finding) => (
+            <FindingRow key={finding.id} finding={finding} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Top priority action items */
+function TopFixes({ findings }: { findings: AuditFinding[] }) {
+  const topFindings = [...findings]
+    .sort((a, b) => {
+      const impactOrder = { High: 0, Medium: 1, Low: 2 };
+      const ai = impactOrder[a.impact as keyof typeof impactOrder] ?? 2;
+      const bi = impactOrder[b.impact as keyof typeof impactOrder] ?? 2;
+      if (ai !== bi) return ai - bi;
+      return a.priority - b.priority;
+    })
+    .slice(0, 5);
+
+  if (topFindings.length === 0) return null;
+
+  return (
+    <div className="space-y-3">
+      <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Top Priorities</h4>
+      {topFindings.map((f, i) => (
+        <div key={f.id} className="flex items-start gap-4">
+          <span className="flex-shrink-0 w-7 h-7 rounded-full bg-black text-white text-xs font-bold flex items-center justify-center">
+            {i + 1}
+          </span>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-0.5">
+              <span className="text-black font-semibold text-sm">{f.title}</span>
+              <ImpactBadge impact={f.impact} />
+            </div>
+            <p className="text-gray-500 text-xs leading-relaxed truncate">{f.description}</p>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ============================================================================
+// MAIN COMPONENT
+// ============================================================================
+
 export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ report }) => {
-  const [filter, setFilter] = useState<string>('all');
-
-  const categories = ['all', 'seo', 'technical', 'design', 'conversion', 'content'];
-
-  const filteredFindings = report.findings.filter(f => 
-    filter === 'all' ? true : f.category === filter
-  ).sort((a, b) => a.priority - b.priority);
-
-  const getCategoryCount = (cat: string) => {
-    return report.findings.filter(f => f.category === cat).length;
-  };
-
   const handleDownload = () => {
     const lines = [
       `# AUDIT REPORT`,
@@ -66,157 +313,90 @@ Fix: ${f.fix}
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `audit-report-${new Date().toISOString().slice(0,10)}.txt`;
+    a.download = `audit-report-${new Date().toISOString().slice(0, 10)}.txt`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   };
 
+  // Group findings by section
+  const sectionFindings: Record<string, AuditFinding[]> = {};
+  for (const section of SECTIONS) {
+    sectionFindings[section.id] = report.findings.filter(f =>
+      section.categories.includes(f.category)
+    );
+  }
+
+  // Count criticals / warnings across all
+  const criticalCount = report.findings.filter(f => f.impact === 'High').length;
+  const warningCount = report.findings.filter(f => f.impact === 'Medium').length;
+
   return (
-    <div className="space-y-8 animate-fade-in">
-      {/* Overview Cards */}
+    <div className="space-y-6 md:space-y-8 animate-fade-in">
+
+      {/* ─── Score + Executive Summary Row ─── */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        {/* Score Ring */}
         <div className="bg-white rounded-[32px] shadow-sm border border-gray-100 overflow-hidden">
-           <AuditChart score={report.overallScore} label="Health Score" color="#111111" />
+          <AuditChart score={report.overallScore} label="Health Score" color="#111111" />
         </div>
+
+        {/* Design Index */}
         <div className="bg-white rounded-[32px] shadow-sm border border-gray-100 overflow-hidden">
-           <AuditChart score={report.designAnalysis.aestheticScore} label="Design Index" color="#10b981" />
+          <AuditChart score={report.designAnalysis.aestheticScore} label="Design Index" color="#10b981" />
         </div>
-        
-        <div className="md:col-span-2 bg-white rounded-[32px] p-8 shadow-sm border border-gray-100 flex flex-col justify-between">
+
+        {/* Executive Summary + Top Fixes */}
+        <div className="md:col-span-2 bg-white rounded-[32px] p-6 md:p-8 shadow-sm border border-gray-100 flex flex-col justify-between">
           <div>
             <div className="flex items-center gap-2 mb-3">
-                <span className="w-2 h-2 rounded-full bg-black animate-pulse"></span>
-                <h3 className="text-gray-400 font-mono text-xs tracking-wider uppercase">Executive Summary</h3>
+              <span className="w-2 h-2 rounded-full bg-black animate-pulse" />
+              <h3 className="text-gray-400 font-mono text-xs tracking-wider uppercase">Executive Summary</h3>
             </div>
             <p className="text-gray-800 text-sm leading-relaxed mb-6 font-medium">{report.summary}</p>
           </div>
+
           <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 border-t border-gray-100 pt-4">
-             <div>
-                <span className="text-xs text-gray-400 font-mono block mb-1">BRAND PERCEPTION</span>
-                <span className={`font-semibold px-4 py-1.5 rounded-full text-sm border ${
-                    report.designAnalysis.pricePointMatch.toLowerCase().includes('cheap') || report.designAnalysis.pricePointMatch.toLowerCase().includes('budget')
-                    ? 'bg-red-50 text-red-600 border-red-100'
-                    : 'bg-gray-100 text-black border-gray-200'
-                }`}>
-                    {report.designAnalysis.pricePointMatch}
-                </span>
-             </div>
-             <div className="flex gap-2">
-                <button 
-                    onClick={handleDownload}
-                    className="flex items-center gap-2 bg-black hover:bg-gray-800 text-white px-5 py-2.5 rounded-full transition-colors text-sm font-medium"
-                >
-                    <Download size={16} />
-                    Export
-                </button>
-             </div>
+            <div>
+              <span className="text-xs text-gray-400 font-mono block mb-1">BRAND PERCEPTION</span>
+              <span className={`font-semibold px-4 py-1.5 rounded-full text-sm border ${
+                report.designAnalysis.pricePointMatch.toLowerCase().includes('cheap') || report.designAnalysis.pricePointMatch.toLowerCase().includes('budget')
+                  ? 'bg-red-50 text-red-600 border-red-100'
+                  : 'bg-gray-100 text-black border-gray-200'
+              }`}>
+                {report.designAnalysis.pricePointMatch}
+              </span>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={handleDownload}
+                className="flex items-center gap-2 bg-black hover:bg-gray-800 text-white px-5 py-2.5 rounded-full transition-colors text-sm font-medium"
+              >
+                <Download size={16} />
+                Export
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Design Analysis Feature Box */}
-      <div className="bg-white rounded-[32px] p-8 border border-gray-100 shadow-sm relative overflow-hidden group">
-         <div className="absolute top-0 right-0 p-40 bg-gradient-to-br from-gray-50 to-gray-100 rounded-full -mr-20 -mt-20 pointer-events-none group-hover:scale-110 transition-transform duration-700"></div>
-         <h3 className="text-xl font-bold text-black mb-3 flex items-center gap-2 relative z-10">
-            <Palette size={20} className="text-black" />
-            Visual & Brand Analysis
-         </h3>
-         <p className="text-gray-600 text-base leading-relaxed relative z-10 max-w-4xl">{report.designAnalysis.critique}</p>
+      {/* ─── Top 5 Priorities ─── */}
+      <div className="bg-white rounded-[32px] p-6 md:p-8 border border-gray-100 shadow-sm">
+        <TopFixes findings={report.findings} />
       </div>
 
-      {/* Findings Section */}
-      <div className="bg-white rounded-[32px] border border-gray-100 shadow-sm overflow-hidden">
-        {/* Tabs */}
-        <div className="flex border-b border-gray-100 overflow-x-auto scrollbar-hide p-2 bg-gray-50/50">
-          {categories.map(cat => (
-            <button
-              key={cat}
-              onClick={() => setFilter(cat)}
-              className={`px-6 py-3 text-sm font-medium rounded-full transition-all whitespace-nowrap flex items-center gap-2 mx-1 ${
-                filter === cat 
-                  ? 'bg-black text-white shadow-md' 
-                  : 'text-gray-500 hover:bg-gray-200/50 hover:text-black'
-              }`}
-            >
-              {cat !== 'all' && <CategoryIcon category={cat} />}
-              {cat.charAt(0).toUpperCase() + cat.slice(1)}
-              <span className={`ml-1 text-xs py-0.5 px-2 rounded-full ${filter === cat ? 'bg-gray-700 text-white' : 'bg-gray-200 text-gray-600'}`}>
-                {cat === 'all' ? report.findings.length : getCategoryCount(cat)}
-              </span>
-            </button>
-          ))}
-        </div>
-
-        {/* List */}
-        <div className="divide-y divide-gray-100">
-          {filteredFindings.length === 0 ? (
-            <div className="p-20 text-center">
-              <div className="w-20 h-20 bg-green-50 text-green-500 rounded-full flex items-center justify-center mx-auto mb-6">
-                <CheckCircle size={40} />
-              </div>
-              <p className="text-gray-900 font-bold text-lg">No issues found.</p>
-              <p className="text-gray-500 mt-1">Great job! This section is clean.</p>
-            </div>
-          ) : (
-            filteredFindings.map((finding) => (
-              <div key={finding.id} className="p-8 hover:bg-gray-50/50 transition-colors group">
-                <div className="flex items-start gap-6">
-                  <div className="mt-1 flex-shrink-0 p-2 bg-gray-50 rounded-xl">
-                    <SeverityIcon impact={finding.impact} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex flex-wrap items-center gap-3 mb-2">
-                      <h4 className="text-black font-bold text-lg">{finding.title}</h4>
-                      <div className="flex items-center gap-2">
-                        <span className={`text-[10px] uppercase px-3 py-1 rounded-full font-bold tracking-wide border ${
-                            finding.impact === 'High' ? 'border-red-100 text-red-600 bg-red-50' :
-                            finding.impact === 'Medium' ? 'border-amber-100 text-amber-600 bg-amber-50' :
-                            'border-blue-100 text-blue-600 bg-blue-50'
-                        }`}>
-                            {finding.impact}
-                        </span>
-                        <span className="text-[10px] uppercase text-gray-400 font-mono border border-gray-200 px-2 py-1 rounded-full">
-                            P{finding.priority}
-                        </span>
-                      </div>
-                    </div>
-                    
-                    {/* Location Badge */}
-                    <div className="flex flex-wrap items-center gap-4 mb-3 text-xs text-gray-500">
-                        {finding.visualLocation && (
-                            <div className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-md">
-                                <MapPin size={12} />
-                                <span className="font-medium">{finding.visualLocation}</span>
-                            </div>
-                        )}
-                         {finding.referenceUrl && (
-                            <a href={finding.referenceUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 hover:text-black transition-colors">
-                                <ExternalLink size={12} />
-                                <span className="truncate max-w-[200px]">{finding.referenceUrl}</span>
-                            </a>
-                        )}
-                    </div>
-
-                    <p className="text-gray-600 text-sm mb-5 leading-relaxed max-w-4xl">{finding.description}</p>
-                    
-                    <div className="bg-gray-50 p-5 rounded-2xl border border-gray-100 flex gap-4">
-                      <div className="flex-shrink-0 mt-0.5">
-                        <ArrowRight size={16} className="text-black" />
-                      </div>
-                      <div className="flex-1">
-                          <span className="text-black text-xs font-bold uppercase tracking-wider block mb-1">Recommendation</span>
-                          <p className="text-gray-700 text-sm font-medium">{finding.fix}</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
+      {/* ─── Section Cards (collapsed by default) ─── */}
+      <div className="space-y-4">
+        {SECTIONS.map(section => (
+          <SectionCard
+            key={section.id}
+            config={section}
+            findings={sectionFindings[section.id] || []}
+            report={report}
+          />
+        ))}
       </div>
     </div>
   );
-}
+};
